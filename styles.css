@@ -49,22 +49,55 @@
 
 .br-notation-body {
   padding: 16px;
-  overflow-x: auto;
+  overflow-x: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
   background: var(--background-primary);
+  width: 100%;
+  box-sizing: border-box;
 }
 
-/* VexFlow Score SVG Theming */
+.br-vexflow-score-container {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* VexFlow Score SVG Responsive Scaling & Theming */
+.br-notation-svg {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
 .br-notation-svg path,
-.br-notation-svg rect,
 .br-notation-svg text {
   fill: var(--text-normal);
 }
 
 .br-notation-svg line {
   stroke: var(--text-normal);
+}
+
+/* Background cutout behind tab fret numbers: match note body background */
+.br-notation-svg rect {
+  fill: var(--background-primary) !important;
+}
+
+/* Explicit styling for tab fret text */
+.br-notation-svg g[type="TabNote.text"] text,
+.br-notation-svg text[font-size*="13"],
+.br-notation-svg text[font-size*="12"],
+.br-notation-svg text[font-size*="11"],
+.br-notation-svg text[font-size*="10"],
+.br-notation-svg text[font-size*="9"],
+.br-notation-svg text[font-size*="8"] {
+  fill: var(--text-normal) !important;
+  font-weight: 700 !important;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif !important;
 }
 
 .br-notation-svg .vf-stavenote:hover,

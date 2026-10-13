@@ -9,7 +9,6 @@ import {
   Setting,
 } from "obsidian";
 import { AudioSynthesizer } from "./audio/audioSynthesizer";
-import { NotationEditorModal } from "./editor/editorModal";
 import { parseBRNotationBlock } from "./parser/dslParser";
 import { TUNING_PRESETS } from "./parser/scales";
 import { renderChordGrid } from "./renderer/chordGridRenderer";
@@ -43,25 +42,6 @@ export default class BRNotationPlugin extends Plugin {
         this.renderNotationBlock(source, el, ctx);
       }
     );
-
-    // Register ribbon icon
-    this.addRibbonIcon("music", "BRNotation: Insert Notation", () => {
-      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-      if (activeView) {
-        this.openEditorModalForSource(activeView.editor, "");
-      } else {
-        new Notice("Open a markdown note to insert notation.");
-      }
-    });
-
-    // Command: Open visual notation editor
-    this.addCommand({
-      id: "open-notation-editor",
-      name: "Open visual notation editor",
-      editorCallback: (editor: Editor) => {
-        this.openEditorModalForSource(editor, "");
-      },
-    });
 
     // Command: Insert standard notation
     this.addCommand({
@@ -150,7 +130,7 @@ export default class BRNotationPlugin extends Plugin {
     el.empty();
     const container = el.createDiv({ cls: "br-notation-container" });
 
-    // Header bar with Edit button
+    // Header bar
     const header = container.createDiv({ cls: "br-notation-header" });
     const parsed = parseBRNotationBlock(source);
 
@@ -161,19 +141,6 @@ export default class BRNotationPlugin extends Plugin {
       (parsed.mode === "chord" ? parsed.chordDiagram?.name : null) ||
       `BRNotation [${parsed.mode.toUpperCase()}]`;
     header.createSpan({ cls: "br-notation-title", text: titleText });
-
-    const actions = header.createDiv({ cls: "br-notation-actions" });
-
-    // Edit button to launch full interactive visual editor
-    const editBtn = actions.createEl("button", {
-      cls: "br-edit-action-btn",
-      text: "✏ Edit",
-    });
-    editBtn.addEventListener("click", () => {
-      new NotationEditorModal(this.app, source, (newContent) => {
-        this.updateBlockInFile(ctx, source, newContent);
-      }).open();
-    });
 
     // Body
     const body = container.createDiv({ cls: "br-notation-body" });
@@ -193,47 +160,6 @@ export default class BRNotationPlugin extends Plugin {
         cls: "br-notation-error",
         text: `Error rendering notation: ${err}`,
       });
-    }
-  }
-
-  /** Open visual editor modal and insert new block into note */
-  private openEditorModalForSource(editor: Editor, initialSource: string) {
-    const defaultBlock =
-      initialSource ||
-      "mode: coupled\ntime: 4/4\nkey: C\n\n| c4(0:2)/q d4(2:2)/q e4(0:1)/q f4(1:1)/q | g4(3:1)/h g4(3:1)/h |\n";
-
-    new NotationEditorModal(this.app, defaultBlock, (newContent) => {
-      const wrapped = `\`\`\`brnotation\n${newContent.trim()}\n\`\`\`\n`;
-      editor.replaceSelection(wrapped);
-    }).open();
-  }
-
-  /** Replace updated block content inside note file */
-  private async updateBlockInFile(
-    ctx: MarkdownPostProcessorContext,
-    oldSource: string,
-    newContent: string
-  ) {
-    const file = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
-    if (!file || !("extension" in file)) return;
-
-    try {
-      const fileData = await this.app.vault.read(file as any);
-      const targetOld = `\`\`\`brnotation\n${oldSource.trim()}\n\`\`\``;
-      const targetNew = `\`\`\`brnotation\n${newContent.trim()}\n\`\`\``;
-
-      if (fileData.includes(targetOld)) {
-        const updated = fileData.replace(targetOld, targetNew);
-        await this.app.vault.modify(file as any, updated);
-      } else {
-        const innerOld = oldSource.trim();
-        if (fileData.includes(innerOld)) {
-          const updated = fileData.replace(innerOld, newContent.trim());
-          await this.app.vault.modify(file as any, updated);
-        }
-      }
-    } catch (e) {
-      new Notice(`Failed to update note: ${e}`);
     }
   }
 }

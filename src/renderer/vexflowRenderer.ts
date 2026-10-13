@@ -5,6 +5,7 @@ import {
   Accidental,
   Articulation,
   Beam,
+  Barline,
   Dot,
   Formatter,
   Renderer,
@@ -35,28 +36,51 @@ export function renderVexflowScore(
   containerEl.empty();
   const wrapper = containerEl.createDiv({ cls: "br-vexflow-score-container" });
 
-  const containerWidth = options.width || Math.max(containerEl.clientWidth || 750, 600);
+  const baseWidth = options.width || containerEl.clientWidth || 700;
+  // Ensure we have a reasonable minimum layout coordinate width so notes aren't squished
+  const containerWidth = Math.max(baseWidth, 580);
   const scale = options.scale || 1.0;
 
-  // Layout parameters
-  const measuresPerLine = containerWidth < 650 ? 1 : containerWidth < 900 ? 2 : 3;
+  // Adaptive measures per system:
+  // If container is narrow (< 600px), 1 measure per row
+  // If 600px - 880px, 2 measures per row
+  // Otherwise up to 3 measures per row
+  const measuresPerLine = containerWidth < 600 ? 1 : containerWidth < 880 ? 2 : 3;
   const isCoupled = score.mode === "coupled";
   const isTab = score.mode === "tab";
   const isNotation = score.mode === "notation";
 
-  const staffHeight = isCoupled ? 220 : 130;
+  // Generous stave spacing for comfortable tab line height (16px per string)
+  const tabLineSpacing = 16;
+  const numStrings = score.tuning.length || 6;
+  const tabStaveHeight = (numStrings - 1) * tabLineSpacing;
+  const notationStaveHeight = 85;
+
+  // Stave line heights
+  const staffSystemHeight = isCoupled
+    ? notationStaveHeight + tabStaveHeight + 90
+    : isTab
+    ? tabStaveHeight + 75
+    : notationStaveHeight + 50;
+
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
-  const totalHeight = totalLines * staffHeight + 60;
+  const totalHeight = totalLines * staffSystemHeight + 40;
 
   const renderer = new Renderer(wrapper, Renderer.Backends.SVG);
   renderer.resize(containerWidth, totalHeight);
   const context = renderer.getContext();
   context.scale(scale, scale);
 
-  // Set theme colors
+  // Configure SVG attributes for responsive scaling and theme adaptability
   const svgEl = wrapper.querySelector("svg");
   if (svgEl) {
     svgEl.classList.add("br-notation-svg");
+    svgEl.setAttribute("viewBox", `0 0 ${containerWidth} ${totalHeight}`);
+    svgEl.setAttribute("width", "100%");
+    svgEl.removeAttribute("height");
+    svgEl.style.maxWidth = "100%";
+    svgEl.style.height = "auto";
+    svgEl.style.display = "block";
   }
 
   const ties: StaveTie[] = [];
@@ -70,8 +94,8 @@ export function renderVexflowScore(
 
     const measureWidth = Math.floor((containerWidth - 30) / measuresPerLine);
     const xPos = 15 + measureInLine * measureWidth;
-    const yNotation = 20 + lineIndex * staffHeight;
-    const yTab = isCoupled ? yNotation + 90 : yNotation;
+    const yNotation = 18 + lineIndex * staffSystemHeight;
+    const yTab = isCoupled ? yNotation + notationStaveHeight + 35 : yNotation;
 
     let stave: Stave | null = null;
     let tabStave: TabStave | null = null;
@@ -89,16 +113,45 @@ export function renderVexflowScore(
         }
       }
       stave.setContext(context).draw();
+
+      // Draw end barline using direct SVG for perfect alignment and theme matching
+      const svg = wrapper.querySelector("svg");
+      if (svg) {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", (xPos + measureWidth).toString());
+        line.setAttribute("y1", (yNotation + 10).toString());
+        line.setAttribute("x2", (xPos + measureWidth).toString());
+        line.setAttribute("y2", (yNotation + notationStaveHeight - 10).toString());
+        line.setAttribute("stroke", "var(--text-normal)");
+        line.setAttribute("stroke-width", "1");
+        svg.appendChild(line);
+      }
     }
 
-    // Build tablature stave
+    // Build tablature stave with legible 16px line spacing
     if (isTab || isCoupled) {
-      tabStave = new TabStave(xPos, yTab, measureWidth);
-      tabStave.setNumLines(score.tuning.length || 6);
+      tabStave = new TabStave(xPos, yTab, measureWidth, {
+        spacingBetweenLinesPx: tabLineSpacing,
+        numLines: numStrings,
+      });
+      tabStave.setNumLines(numStrings);
       if (isFirstInLine) {
         tabStave.addClef("tab");
       }
       tabStave.setContext(context).draw();
+
+      // Draw end barline using direct SVG for perfect alignment and theme matching
+      const svg = wrapper.querySelector("svg");
+      if (svg) {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", (xPos + measureWidth).toString());
+        line.setAttribute("y1", (yTab + 5).toString());
+        line.setAttribute("x2", (xPos + measureWidth).toString());
+        line.setAttribute("y2", (yTab + tabStaveHeight - 5).toString());
+        line.setAttribute("stroke", "var(--text-normal)");
+        line.setAttribute("stroke-width", "1");
+        svg.appendChild(line);
+      }
     }
 
     // Add brace / bracket connector if coupled
@@ -219,6 +272,16 @@ export function renderVexflowScore(
           duration: note.duration + (note.isRest ? "r" : ""),
           dots: note.dots,
         });
+
+        // Enlarge and bolden fret numbers for clear readability
+        const tabNoteAny = vfTabNote as any;
+        if (tabNoteAny.fretElement && Array.isArray(tabNoteAny.fretElement)) {
+          tabNoteAny.fretElement.forEach((el: any) => {
+            if (el && typeof el.setFontSize === "function") {
+              el.setFontSize(13); // 13pt bold font
+            }
+          });
+        }
 
         if (isSelected) {
           vfTabNote.setStyle({ fillStyle: "var(--interactive-accent, #7c3aed)", strokeStyle: "var(--interactive-accent, #7c3aed)" });
