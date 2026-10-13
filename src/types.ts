@@ -36,7 +36,8 @@ export interface ScoreMeasure {
   keySignature?: string; // e.g. "C", "G", "F"
   clef?: ClefType;
   notes: ScoreNote[];
-  barline?: "single" | "double" | "repeat-begin" | "repeat-end" | "repeat-both" | "end";
+  startBarline?: "repeat-begin"; // left edge; right edge is `barline`
+  barline?: "single" | "double" | "repeat-end" | "end"; // right edge
 }
 
 export interface NotationScore {

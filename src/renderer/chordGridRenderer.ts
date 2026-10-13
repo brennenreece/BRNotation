@@ -19,6 +19,11 @@ export function renderChordGrid(
   containerEl.empty();
   const wrapper = containerEl.createDiv({ cls: "br-chordgrid-container" });
 
+  if (score.title) {
+    const titleEl = wrapper.createDiv({ cls: "br-chordgrid-title" });
+    titleEl.setText(score.title);
+  }
+
   const measuresPerRow = score.measuresPerRow || 4;
   const totalMeasures = score.measures.length;
   const numRows = Math.ceil(totalMeasures / measuresPerRow);

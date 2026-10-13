@@ -114,6 +114,8 @@ export function renderVexflowScore(
         }
       }
 
+      applyBarline(stave, measure);
+
       stave.setContext(context).draw();
     }
 
@@ -127,6 +129,7 @@ export function renderVexflowScore(
       if (isFirstInLine) {
         tabStave.addClef("tab");
       }
+      applyBarline(tabStave, measure);
 
       tabStave.setContext(context).draw();
     }
@@ -307,6 +310,24 @@ export function renderVexflowScore(
 
   // Draw end barlines
   return wrapper;
+}
+
+/** Applies a measure's left and right barlines to a stave */
+function applyBarline(stave: Stave, measure: ScoreMeasure) {
+  if (measure.startBarline === "repeat-begin") {
+    stave.setBegBarType(Barline.type.REPEAT_BEGIN);
+  }
+  switch (measure.barline) {
+    case "double":
+      stave.setEndBarType(Barline.type.DOUBLE);
+      break;
+    case "end":
+      stave.setEndBarType(Barline.type.END);
+      break;
+    case "repeat-end":
+      stave.setEndBarType(Barline.type.REPEAT_END);
+      break;
+  }
 }
 
 /** Convert MIDI number to VexFlow key format (e.g. 60 -> { key: "c/4", acc: undefined }) */

@@ -253,23 +253,23 @@ function parseNotationContent(
   const measures: ScoreMeasure[] = [];
   let currentMeasureNumber = 1;
 
-  // Combine lines and split by measure bar '|'
+  // Split into segments at barline tokens, keeping each barline as its own token.
+  // Longest tokens first so ":|:" and "|:" are not read as "|" or ":".
   const fullContent = lines.join(" ");
-  const rawMeasures = fullContent.split("|");
+  const parts = fullContent.split(/(:\|:|\|\||\|:|:\||\|\.|\|)/);
 
-  for (const rawM of rawMeasures) {
-    const trimmed = rawM.trim();
-    if (!trimmed) continue;
-
+  // A barline token closes the current measure and opens the next one,
+  // e.g. ":|:" is a repeat-end on the left and a repeat-begin on the right.
+  let openingBar: BarlineType = "single";
+  let segment = "";
+  const flush = (closingBar: ClosingBarline) => {
+    const trimmed = segment.trim();
+    segment = "";
     const notes: ScoreNote[] = [];
-    // Tokenize notes: e.g. "Am7" e4/q or c4/8 or [c4,e4,g4]/q or 3:5/8
-    const tokens = tokenizeMeasure(trimmed);
-
-    for (const token of tokens) {
+    for (const token of tokenizeMeasure(trimmed)) {
       const scoreNote = parseNoteToken(token, mode);
       if (scoreNote) notes.push(scoreNote);
     }
-
     if (notes.length > 0) {
       measures.push({
         number: currentMeasureNumber++,
@@ -277,9 +277,23 @@ function parseNotationContent(
         keySignature: currentMeasureNumber === 2 ? keySignature : undefined,
         clef: currentMeasureNumber === 2 ? clef : undefined,
         notes,
+        startBarline: openingBar === "repeat-begin" ? "repeat-begin" : undefined,
+        barline: closingBar === "single" ? undefined : closingBar,
       });
     }
+  };
+
+  for (const part of parts) {
+    if (part === undefined) continue;
+    const bar = BARLINE_TOKENS[part];
+    if (bar) {
+      flush(bar.closing);
+      openingBar = bar.opening;
+    } else {
+      segment += part;
+    }
   }
+  flush("single");
 
   // If no measures parsed, provide a default empty measure
   if (measures.length === 0) {
@@ -309,6 +323,19 @@ function parseNotationContent(
     measures,
   };
 }
+
+type BarlineType = "single" | "double" | "end" | "repeat-begin" | "repeat-end";
+type ClosingBarline = "single" | "double" | "end" | "repeat-end";
+
+/** Maps DSL barline tokens to the closing barline of the previous measure and the opening barline of the next */
+const BARLINE_TOKENS: Record<string, { closing: ClosingBarline; opening: BarlineType }> = {
+  "|": { closing: "single", opening: "single" },
+  "||": { closing: "double", opening: "single" },
+  "|.": { closing: "end", opening: "single" },
+  "|:": { closing: "single", opening: "repeat-begin" },
+  ":|": { closing: "repeat-end", opening: "single" },
+  ":|:": { closing: "repeat-end", opening: "repeat-begin" },
+};
 
 /** Helper to tokenize notes and chord symbols in a measure */
 function tokenizeMeasure(measureStr: string): string[] {

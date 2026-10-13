@@ -2,34 +2,24 @@
    BRNotation Plugin Styles - Standard Notation, Tab, Chord Grids, & Fretboards
    ========================================================================== */
 
-/* Flatten Obsidian's code-block chrome around the processor */
-.markdown-preview-view .block-language-brnotation,
-.markdown-source-view .block-language-brnotation,
-.cm-preview-code-block:has(.br-notation-container) {
-  margin: 0 !important;
-  padding: 0 !important;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.br-notation-container,
-.br-notation-header,
-.br-notation-body {
+/* Main Container in Markdown */
+.br-notation-container {
   margin: 0;
   padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
-}
-
-.br-notation-container {
   overflow: hidden;
 }
 
-.br-notation-title {
-  margin: 0;
+.br-notation-header {
   padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+}
+
+.br-notation-title {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 700;
@@ -53,10 +43,13 @@
 }
 
 .br-notation-body {
+  padding: 0;
+  margin: 0;
   overflow-x: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
+  background: transparent;
   width: 100%;
   box-sizing: border-box;
 }
