@@ -140,10 +140,16 @@ export default class BRNotationPlugin extends Plugin {
       parsed.fretboardScale?.title ||
       (parsed.mode === "chord" ? parsed.chordDiagram?.name : null) ||
       `BRNotation [${parsed.mode.toUpperCase()}]`;
-    header.createSpan({ cls: "br-notation-title", text: titleText });
+
+    // Create h3 element for the title
+    const titleEl = header.createEl("h3", { text: titleText });
+    titleEl.style.margin = "0";
 
     // Body
     const body = container.createDiv({ cls: "br-notation-body" });
+
+    // Hide header if not needed or just remove it to maximize space
+    header.style.display = "none";
 
     try {
       if (parsed.mode === "chordgrid" && parsed.chordGridScore) {

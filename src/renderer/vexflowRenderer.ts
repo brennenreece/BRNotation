@@ -113,14 +113,7 @@ export function renderVexflowScore(
           stave.addKeySignature(measure.keySignature || score.keySignature);
         }
       }
-      stave.setContext(context).draw();
 
-      // Add end barline as modifier before drawing
-      const barlineType = mIdx === score.measures.length - 1 ? Barline.type.END : Barline.type.SINGLE;
-      const barline = new Barline(barlineType);
-      barline.setPosition(StaveModifier.Position.END);
-      barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      stave.addModifier(barline);
       stave.setContext(context).draw();
     }
 
@@ -135,20 +128,11 @@ export function renderVexflowScore(
         tabStave.addClef("tab");
       }
 
-      // Add end barline as modifier before drawing
-      const barlineType = mIdx === score.measures.length - 1 ? Barline.type.END : Barline.type.SINGLE;
-      const barline = new Barline(barlineType);
-      barline.setPosition(StaveModifier.Position.END);
-      barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      tabStave.addModifier(barline);
       tabStave.setContext(context).draw();
     }
 
-    // Add brace / bracket connector if coupled
+    // Add a simple vertical line connector if coupled
     if (isCoupled && stave && tabStave && isFirstInLine) {
-      const connector = new StaveConnector(stave, tabStave);
-      connector.setType(StaveConnector.type.BRACKET);
-      connector.setContext(context).draw();
       const lineConnector = new StaveConnector(stave, tabStave);
       lineConnector.setType(StaveConnector.type.SINGLE_LEFT);
       lineConnector.setContext(context).draw();
@@ -292,6 +276,34 @@ export function renderVexflowScore(
       Formatter.FormatAndDraw(context, tabStave, tabNotes);
     }
   }
+
+  // Convert VexFlow's barline rectangles to SVG lines.
+  // This ensures they are styled as lines (using stroke) rather than rectangles (using fill),
+  // making them consistent with staff lines and theme-aware.
+  const barlineRects = wrapper.querySelectorAll(".vf-stavebarline rect");
+  barlineRects.forEach((rect) => {
+    const x = parseFloat(rect.getAttribute("x") || "0");
+    const y = parseFloat(rect.getAttribute("y") || "0");
+    const width = rect.getAttribute("width") || "1";
+    const height = parseFloat(rect.getAttribute("height") || "0");
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x.toString());
+    line.setAttribute("y1", y.toString());
+    line.setAttribute("x2", x.toString());
+    line.setAttribute("y2", (y + height).toString());
+    line.setAttribute("stroke-width", width);
+
+    rect.parentNode?.replaceChild(line, rect);
+  });
+
+  // Strip remaining inline styles and attributes from lines and paths to let the CSS rules take full control.
+  const elements = wrapper.querySelectorAll("line, path");
+  elements.forEach((el) => {
+    el.removeAttribute("stroke");
+    el.removeAttribute("fill");
+    el.removeAttribute("style");
+  });
 
   // Draw end barlines
   return wrapper;
