@@ -28,7 +28,7 @@ BRNotation renders music notation, guitar tablature, chord charts, chord diagram
    - **Insert standard notation block**
    - **Insert guitar tablature block**
    - **Insert coupled notation and tab block**
-   - **Insert lead-sheet chord grid**
+   - **Insert chord chart**
    - **Insert chord diagram**
    - **Insert fretboard scale diagram**
 4. Edit the text inside the block. The rendered output updates when you leave the block or switch to reading view.
@@ -234,7 +234,7 @@ key: G
 
 ## Chord grids
 
-Use `type: chordgrid` for a lead sheet of chord changes.
+Use `type: chordgrid` for a chord chart. Chords sit above a staff with the same barlines as staff notation, and each beat gets a slash.
 
 ```brnotation
 type: chordgrid
@@ -253,8 +253,10 @@ per-row: 4
 - `[Name]` on its own line starts a section, such as `[Verse]` or `[Chorus]`.
 - Each line holds measures separated by `|`.
 - Write the chords for each measure separated by spaces. Two chords in one measure share it equally: `C7 A7`.
-- Use `|:` and `:|` for repeats (see [Barline reference](#barline-reference)).
+- Barlines use the same tokens as staff notation: `|`, `||`, `|.`, `|:`, and `:|` (see [Barline reference](#barline-reference)).
+- Each measure shows one slash per beat of the time signature, so 4/4 gets four slashes and 3/4 gets three.
 - `per-row:` sets how many measures go on each line.
+- `time:` shows a stacked time signature (for example 4 over 4) at the start of each line. There is no clef.
 
 ```brnotation
 type: chordgrid
@@ -266,6 +268,41 @@ per-row: 2
 | Am | Dm | E7 | Am |
 | C | G | Am | E7 |
 ```
+
+### Roman-numeral functions
+
+Add `chord function = true` to show a roman-numeral label under each chord. Set `key:` so the numerals are relative to the right tonic. Without `chord function = true`, no labels appear.
+
+```brnotation
+type: chordgrid
+title: Simple Verse
+time: 4/4
+key: C
+chord function = true
+per-row: 4
+
+[Verse]
+| C | Am | F | G7 |
+| C | Am | Dm | G7 |
+```
+
+Numerals use uppercase for major chords and lowercase for minor and diminished chords. A chord outside the key gets a sharp prefix, such as `♯iv`.
+
+### Measure numbers
+
+Measure numbers are hidden by default. Add `measure numbers = true` to show a small number in the top-left corner of each measure.
+
+```brnotation
+type: chordgrid
+title: Simple Verse
+time: 4/4
+measure numbers = true
+
+| C | Am | F | G7 |
+| C | Am | Dm | G7 |
+```
+
+The time signature appears only on the first line of the chart.
 
 ---
 
@@ -442,6 +479,33 @@ Open **Settings → BRNotation** to change these options.
 | Default clef | Treble | Clef used when a notation block does not set `clef:`. |
 | Maximum measures per line | 4 | Upper limit on measures per staff line (slider range 1 to 8). If there are fewer measures, they fill the line. |
 | Tab line spacing | 16 | Vertical space between tab strings (slider range 10 to 24). |
+| Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
+| Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
+| Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |
+
+### Font options
+
+The music fonts are open source (SIL Open Font License 1.1) and are bundled with the plugin:
+
+- **Bravura** is the standard SMuFL music font and the default.
+- **Petaluma** has a handwritten look.
+- **Leland** is the font used by MuseScore.
+- **Gootville** is an engraved-style font based on Bravura.
+- **MuseJazz** is a handwritten jazz-style font.
+- **JulesJazz** is a jazz-style font.
+
+For **Chord symbol font**, JulesJazz and MuseJazz give jazz-style chord names. Both include letters, digits, and the usual chord symbols (#, b, +, -, °, ø).
+
+Changes to the staff font apply to blocks rendered after the change. Reopen or re-render a note to see the new font.
+
+Example chord chart. With **Chord symbol font** set to JulesJazz, the chord names use the jazz font:
+
+```brnotation
+type: chordgrid
+time: 4/4
+
+| Bbmaj7 | Gm7 C7 | Fmaj7 | Fmaj7 |
+```
 
 Example, a block that overrides the default clef:
 

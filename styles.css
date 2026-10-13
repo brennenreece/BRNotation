@@ -20,8 +20,8 @@
 }
 
 .br-notation-title {
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  text-transform: none;
+  letter-spacing: normal;
   font-weight: 700;
   color: var(--text-normal);
 }
@@ -165,7 +165,8 @@
 }
 
 .br-chordgrid-slash {
-  stroke: var(--text-muted);
+  stroke: var(--text-normal);
+  stroke-linecap: round;
 }
 
 .br-chordgrid-measure-num {
@@ -175,16 +176,30 @@
 }
 
 .br-chordgrid-section-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   fill: var(--interactive-accent);
-  text-transform: uppercase;
+}
+
+.br-chordgrid-staff-line {
+  stroke: var(--text-normal);
+  stroke-width: 1;
+}
+
+.br-chordgrid-timesig {
+  font-family: var(--font-serif, serif);
+  font-size: 18px;
+  font-weight: 700;
+  fill: var(--text-normal);
+}
+
+.br-chordgrid-function-text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  fill: var(--text-muted);
 }
 
 .br-chordgrid-chord-text {
-  font-family: var(--font-sans);
-  font-size: 18px;
-  font-weight: 700;
   fill: var(--text-normal);
 }
 

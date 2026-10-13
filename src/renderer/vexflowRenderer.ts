@@ -17,12 +17,18 @@ import {
   StaveTie,
   TabNote,
   TabStave,
+  MetricsDefaults,
+  VexFlow,
 } from "vexflow";
 import { NotationScore, ScoreMeasure, ScoreNote } from "../types";
 import { midiToStringFret, noteToMidi } from "../parser/scales";
 
 export interface VexflowRenderOptions {
   width?: number;
+  /** VexFlow font family name for the staff notation font */
+  staffFontFamily?: string;
+  /** Notehead size multiplier for the staff font, relative to Bravura */
+  noteheadScale?: number;
   scale?: number;
   interactive?: boolean;
   activeMeasureIndex?: number;
@@ -32,6 +38,9 @@ export interface VexflowRenderOptions {
   tabLineSpacing?: number;
 }
 
+// Extra space in px between the tab clef and the first fret number on standalone tab.
+const TAB_FIRST_NOTE_GAP = 14;
+
 export function renderVexflowScore(
   containerEl: HTMLElement,
   score: NotationScore,
@@ -39,6 +48,10 @@ export function renderVexflowScore(
 ): HTMLElement {
   containerEl.empty();
   const wrapper = containerEl.createDiv({ cls: "br-vexflow-score-container" });
+  if (options.staffFontFamily) {
+    VexFlow.setFonts(options.staffFontFamily);
+  }
+  MetricsDefaults.NoteHead.fontScale = options.noteheadScale ?? 1;
 
   const baseWidth = options.width || containerEl.clientWidth || 700;
   // Ensure we have a reasonable minimum layout coordinate width so notes aren't squished
@@ -143,6 +156,9 @@ export function renderVexflowScore(
     if (stave && tabStave) {
       stave.format();
       tabStave.setNoteStartX(stave.getNoteStartX());
+    } else if (tabStave) {
+      // Standalone tab: widen the gap between the clef and the first fret number.
+      tabStave.setNoteStartX(tabStave.getNoteStartX() + TAB_FIRST_NOTE_GAP);
     }
 
     if (stave) {
@@ -315,7 +331,10 @@ export function renderVexflowScore(
       }
 
       if (tabStave && tabNotes.length > 0) {
-        Formatter.FormatAndDraw(context, tabStave, tabNotes);
+        // Same SOFT voice layout as the coupled branch so tab-only spacing matches it.
+        const tabvoice = new Voice("4/4").setMode(Voice.Mode.SOFT).addTickables(tabNotes);
+        new Formatter().joinVoices([tabvoice]).format([tabvoice], tabStave.getNoteEndX() - tabStave.getNoteStartX());
+        tabvoice.draw(context, tabStave);
         tabNotes.forEach((tn) => tabNoteCenters.push(tn.getAbsoluteX()));
       }
     }

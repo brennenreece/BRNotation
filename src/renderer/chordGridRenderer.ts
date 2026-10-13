@@ -1,14 +1,61 @@
 /**
- * Lead-Sheet Chord Grid SVG Renderer
+ * Chord chart SVG renderer. Staves, barlines, time signature, and beat slashes
+ * are drawn with VexFlow, the same as staff notation. Chord names and roman
+ * numerals are SVG text.
  */
-import { ChordGridScore } from "../types";
+import { Barline, Formatter, Renderer, Stave, StaveNote, Voice } from "vexflow";
+import { ChordGridMeasure, ChordGridScore } from "../types";
 import { parseChord } from "../parser/chordParser";
+import { romanNumeralFor } from "../theory/romanNumeral";
 
 export interface ChordGridRenderOptions {
   width?: number;
   interactive?: boolean;
   activeMeasureIndex?: number;
   onMeasureClick?: (measureIndex: number) => void;
+}
+
+/** Vertical space reserved above the staff for chord names and section labels */
+const CHORD_BAND = 34;
+/** Vertical space reserved below the staff for roman-numeral functions */
+const FUNCTION_BAND = 24;
+/** Space between VexFlow staff lines (matches the notation staves) */
+const STAFF_SPACE = 10;
+/** Extra room under the staff so the bottom row is not clipped */
+const STAFF_BOTTOM_PAD = 24;
+/** Gap kept between the beat slashes and each barline */
+const BEAT_EDGE_INSET = 12;
+const TOP_PAD = 8;
+const BOTTOM_PAD = 12;
+const LEFT_PAD = 6;
+const RIGHT_PAD = 10;
+/** Width of the first measure of each system, which holds the time signature */
+const TIMESIG_WIDTH = 34;
+
+let chordFontFamily = "sans-serif";
+let chordFontSize = 16;
+let chordFontSpacing = 0;
+let chordFontWeight = 700;
+
+/**
+ * Sets the font used for chord names. The family must be a concrete font-family list,
+ * not a CSS variable: SVG presentation attributes do not resolve var().
+ * Size is the chord font size in px; spacing is letter-spacing in px; weight is the font weight.
+ */
+export function setChordFontStyle(family: string, size: number, spacing: number, weight: number): void {
+  chordFontFamily = family;
+  chordFontSize = size;
+  chordFontSpacing = spacing;
+  chordFontWeight = weight;
+  // Update chord text already drawn, so open notes change without a re-render.
+  document.querySelectorAll<SVGElement>(".br-chordgrid-chord-text").forEach((el) => applyChordTextStyle(el));
+}
+
+function applyChordTextStyle(el: Element) {
+  el.setAttribute("font-family", chordFontFamily);
+  el.setAttribute("font-size", `${chordFontSize}px`);
+  el.setAttribute("letter-spacing", `${chordFontSpacing}`);
+  el.setAttribute("font-weight", `${chordFontWeight}`);
 }
 
 export function renderChordGrid(
@@ -26,228 +73,217 @@ export function renderChordGrid(
 
   const measuresPerRow = score.measuresPerRow || 4;
   const totalMeasures = score.measures.length;
-  const numRows = Math.ceil(totalMeasures / measuresPerRow);
+  const numRows = Math.max(1, Math.ceil(totalMeasures / measuresPerRow));
 
   const containerWidth = options.width || Math.max(containerEl.clientWidth || 700, 500);
-  const cellWidth = Math.floor((containerWidth - 20) / measuresPerRow);
-  const cellHeight = 70;
-  const rowSpacing = 20;
+  const usableWidth = containerWidth - LEFT_PAD - RIGHT_PAD;
+  // The first measure of each row is wider to hold the time signature.
+  const baseWidth = (usableWidth - TIMESIG_WIDTH) / measuresPerRow;
+  const firstWidth = baseWidth + TIMESIG_WIDTH;
+
+  const funcBand = score.showFunctions ? FUNCTION_BAND : 0;
+  // Each system is chord band + staff + numeral band. Total height follows the system count.
+  const rowHeight = CHORD_BAND + STAFF_SPACE * 4 + STAFF_BOTTOM_PAD + funcBand;
+  // VexFlow staves extend below the bottom line, so the height is taken from the last
+  // system's real bottom edge rather than from the estimated row height.
+  const lastStaveY = TOP_PAD + (numRows - 1) * rowHeight + CHORD_BAND;
+  const lastStave = new Stave(0, lastStaveY, 10);
+  const totalHeight = Math.max(
+    TOP_PAD + numRows * rowHeight + BOTTOM_PAD,
+    lastStave.getBottomY() + FUNCTION_BAND + BOTTOM_PAD
+  );
 
   const svgNS = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNS, "svg");
-  const totalHeight = numRows * (cellHeight + rowSpacing) + 30;
+  const svgWrapper = wrapper.createDiv({ cls: "br-chordgrid-svg-wrap" });
+  const renderer = new Renderer(svgWrapper, Renderer.Backends.SVG);
+  renderer.resize(containerWidth, totalHeight);
+  const context = renderer.getContext();
+  const svg = svgWrapper.querySelector("svg") as SVGSVGElement | null;
+  if (svg) svg.classList.add("br-chordgrid-svg");
 
-  svg.setAttribute("width", `${containerWidth}`);
-  svg.setAttribute("height", `${totalHeight}`);
-  svg.setAttribute("viewBox", `0 0 ${containerWidth} ${totalHeight}`);
-  svg.classList.add("br-chordgrid-svg");
+  for (let row = 0; row < numRows; row++) {
+    const rowTop = TOP_PAD + row * rowHeight;
+    const staffY = rowTop + CHORD_BAND;
 
-  for (let mIdx = 0; mIdx < totalMeasures; mIdx++) {
-    const measure = score.measures[mIdx];
-    const row = Math.floor(mIdx / measuresPerRow);
-    const col = mIdx % measuresPerRow;
+    for (let col = 0; col < measuresPerRow; col++) {
+      const mIdx = row * measuresPerRow + col;
+      if (mIdx >= totalMeasures) break;
+      const measure = score.measures[mIdx];
+      const x = LEFT_PAD + (col === 0 ? 0 : firstWidth + (col - 1) * baseWidth);
+      const width = col === 0 ? firstWidth : baseWidth;
 
-    const x = 10 + col * cellWidth;
-    const y = 15 + row * (cellHeight + rowSpacing);
-
-    const isFirstInRow = col === 0;
-    const isLastInRow = col === measuresPerRow - 1 || mIdx === totalMeasures - 1;
-    const isSelected = options.activeMeasureIndex === mIdx;
-
-    // Group for measure
-    const g = document.createElementNS(svgNS, "g");
-    g.classList.add("br-chordgrid-measure");
-    if (isSelected) g.classList.add("is-selected");
-    g.setAttribute("data-measure-index", `${mIdx}`);
-
-    if (options.interactive && options.onMeasureClick) {
-      g.style.cursor = "pointer";
-      g.addEventListener("click", () => options.onMeasureClick!(mIdx));
-    }
-
-    // Measure box background
-    const rect = document.createElementNS(svgNS, "rect");
-    rect.setAttribute("x", `${x}`);
-    rect.setAttribute("y", `${y}`);
-    rect.setAttribute("width", `${cellWidth}`);
-    rect.setAttribute("height", `${cellHeight}`);
-    rect.setAttribute("rx", "4");
-    rect.classList.add("br-chordgrid-cell-bg");
-    if (isSelected) rect.classList.add("is-active-bg");
-    g.appendChild(rect);
-
-    // Section label above first measure in section
-    if (measure.section) {
-      const secText = document.createElementNS(svgNS, "text");
-      secText.setAttribute("x", `${x + 6}`);
-      secText.setAttribute("y", `${y - 5}`);
-      secText.classList.add("br-chordgrid-section-label");
-      secText.textContent = `[${measure.section}]`;
-      g.appendChild(secText);
-    }
-
-    // Barlines
-    // Left barline
-    if (measure.repeatBegin) {
-      // Repeat start: thick line, thin line, double dots
-      drawRepeatBar(g, x, y, cellHeight, "begin");
-    } else {
-      const leftBar = document.createElementNS(svgNS, "line");
-      leftBar.setAttribute("x1", `${x}`);
-      leftBar.setAttribute("y1", `${y}`);
-      leftBar.setAttribute("x2", `${x}`);
-      leftBar.setAttribute("y2", `${y + cellHeight}`);
-      leftBar.classList.add("br-chordgrid-barline");
-      g.appendChild(leftBar);
-    }
-
-    // Right barline
-    if (measure.repeatEnd) {
-      drawRepeatBar(g, x + cellWidth, y, cellHeight, "end");
-    } else if (isLastInRow) {
-      const rightBar = document.createElementNS(svgNS, "line");
-      rightBar.setAttribute("x1", `${x + cellWidth}`);
-      rightBar.setAttribute("y1", `${y}`);
-      rightBar.setAttribute("x2", `${x + cellWidth}`);
-      rightBar.setAttribute("y2", `${y + cellHeight}`);
-      rightBar.classList.add("br-chordgrid-barline");
-      g.appendChild(rightBar);
-    }
-
-    // Measure number
-    const numText = document.createElementNS(svgNS, "text");
-    numText.setAttribute("x", `${x + 6}`);
-    numText.setAttribute("y", `${y + 14}`);
-    numText.classList.add("br-chordgrid-measure-num");
-    numText.textContent = `${measure.number}`;
-    g.appendChild(numText);
-
-    // Measure content (chords, slashes, simile)
-    const chords = measure.cells[0]?.chords || [];
-    if (chords.includes("%")) {
-      // Simile / repeat measure sign
-      drawSimile(g, x + cellWidth / 2, y + cellHeight / 2);
-    } else if (chords.length === 1) {
-      // Single chord centered
-      drawChordSvg(g, chords[0], x + cellWidth / 2, y + cellHeight / 2 + 7, "center");
-    } else if (chords.length === 2) {
-      // Two chords split evenly
-      drawChordSvg(g, chords[0], x + cellWidth * 0.28, y + cellHeight / 2 + 7, "center");
-      drawChordSvg(g, chords[1], x + cellWidth * 0.72, y + cellHeight / 2 + 7, "center");
-    } else if (chords.length === 4) {
-      // 4 beats
-      for (let i = 0; i < 4; i++) {
-        const cx = x + cellWidth * (0.15 + i * 0.23);
-        const item = chords[i];
-        if (item === "/") {
-          drawBeatSlash(g, cx, y + cellHeight / 2 + 4);
-        } else {
-          drawChordSvg(g, item, cx, y + cellHeight / 2 + 7, "center");
-        }
+      const stave = new Stave(x, staffY, width);
+      if (row === 0 && col === 0) {
+        stave.addTimeSignature(score.timeSignature);
       }
-    } else {
-      // Multiple items spaced
-      chords.forEach((ch, idx) => {
-        const cx = x + (cellWidth / (chords.length + 1)) * (idx + 1);
-        if (ch === "/") {
-          drawBeatSlash(g, cx, y + cellHeight / 2 + 4);
-        } else {
-          drawChordSvg(g, ch, cx, y + cellHeight / 2 + 7, "center");
-        }
-      });
-    }
+      applyBarline(stave, measure);
+      stave.setContext(context).draw();
+      drawRightEdgeBarline(stave, measure);
 
-    svg.appendChild(g);
+      drawMeasureContent(context, stave, measure, x, width, score, mIdx, options, svg);
+    }
   }
 
-  wrapper.appendChild(svg);
   return wrapper;
 }
 
-/** Helper to draw repeat barlines */
-function drawRepeatBar(
-  g: SVGElement,
+/** Draws chord names, beat slashes, numerals, and measure number for one measure */
+function drawMeasureContent(
+  context: any,
+  stave: Stave,
+  measure: ChordGridMeasure,
   x: number,
-  y: number,
-  height: number,
-  type: "begin" | "end"
+  width: number,
+  score: ChordGridScore,
+  mIdx: number,
+  options: ChordGridRenderOptions,
+  svg: SVGSVGElement | null
 ) {
   const svgNS = "http://www.w3.org/2000/svg";
-  const thickX = type === "begin" ? x + 1.5 : x - 1.5;
-  const thinX = type === "begin" ? x + 5 : x - 5;
-  const dotX = type === "begin" ? x + 9 : x - 9;
+  const g = document.createElementNS(svgNS, "g");
+  g.classList.add("br-chordgrid-measure");
+  g.setAttribute("data-measure-index", `${mIdx}`);
+  if (options.interactive && options.onMeasureClick) {
+    g.style.cursor = "pointer";
+    g.addEventListener("click", () => options.onMeasureClick!(mIdx));
+  }
+  if (svg) svg.appendChild(g);
 
-  const thickLine = document.createElementNS(svgNS, "line");
-  thickLine.setAttribute("x1", `${thickX}`);
-  thickLine.setAttribute("y1", `${y}`);
-  thickLine.setAttribute("x2", `${thickX}`);
-  thickLine.setAttribute("y2", `${y + height}`);
-  thickLine.setAttribute("stroke-width", "3.5");
-  thickLine.classList.add("br-chordgrid-barline-thick");
-  g.appendChild(thickLine);
+  const top = stave.getYForLine(0);
+  const bottom = stave.getYForLine(4);
+  const midY = (top + bottom) / 2;
 
-  const thinLine = document.createElementNS(svgNS, "line");
-  thinLine.setAttribute("x1", `${thinX}`);
-  thinLine.setAttribute("y1", `${y}`);
-  thinLine.setAttribute("x2", `${thinX}`);
-  thinLine.setAttribute("y2", `${y + height}`);
-  thinLine.setAttribute("stroke-width", "1");
-  thinLine.classList.add("br-chordgrid-barline");
-  g.appendChild(thinLine);
+  if (measure.section) {
+    const secText = document.createElementNS(svgNS, "text");
+    secText.setAttribute("x", `${x + 2}`);
+    secText.setAttribute("y", `${top - CHORD_BAND + 10}`);
+    secText.classList.add("br-chordgrid-section-label");
+    secText.textContent = measure.section;
+    g.appendChild(secText);
+  }
 
-  const dot1 = document.createElementNS(svgNS, "circle");
-  dot1.setAttribute("cx", `${dotX}`);
-  dot1.setAttribute("cy", `${y + height * 0.35}`);
-  dot1.setAttribute("r", "2.5");
-  dot1.classList.add("br-chordgrid-repeat-dot");
-  g.appendChild(dot1);
+  if (score.showMeasureNumbers) {
+    const numText = document.createElementNS(svgNS, "text");
+    numText.setAttribute("x", `${x + 3}`);
+    numText.setAttribute("y", `${top - CHORD_BAND + 10}`);
+    numText.classList.add("br-chordgrid-measure-num");
+    numText.textContent = `${measure.number}`;
+    g.appendChild(numText);
+  }
 
-  const dot2 = document.createElementNS(svgNS, "circle");
-  dot2.setAttribute("cx", `${dotX}`);
-  dot2.setAttribute("cy", `${y + height * 0.65}`);
-  dot2.setAttribute("r", "2.5");
-  dot2.classList.add("br-chordgrid-repeat-dot");
-  g.appendChild(dot2);
+  const chords = measure.cells[0]?.chords || [];
+  const beatCount = beatsIn(score.timeSignature);
+  // Inset from both barlines so slashes never touch a barline or repeat dots
+  const innerStart = stave.getNoteStartX() + BEAT_EDGE_INSET;
+  const innerEnd = stave.getNoteEndX() - BEAT_EDGE_INSET;
+  const innerWidth = Math.max(10, innerEnd - innerStart);
+
+  // One slash per beat, evenly spaced across the measure
+  const beatWidth = innerWidth / beatCount;
+  for (let b = 0; b < beatCount; b++) {
+    const cx = innerStart + beatWidth * (b + 0.5);
+    drawBeatSlash(g, cx, midY, STAFF_SPACE);
+  }
+
+  // Each chord is centered over the beat where it starts. Chords split the bar evenly.
+  chords.forEach((label, idx) => {
+    const startBeat = Math.min(beatCount - 1, Math.round((idx * beatCount) / chords.length));
+    const cx = innerStart + beatWidth * (startBeat + 0.5);
+    if (label === "%") {
+      drawSimile(g, cx, top - 12);
+      return;
+    }
+    if (label === "/") return;
+    drawChordSvg(g, label, cx, top - 12, "center");
+    if (score.showFunctions && score.key) {
+      const numeral = romanNumeralFor(label, score.key);
+      if (numeral) {
+        const fText = document.createElementNS(svgNS, "text");
+        fText.setAttribute("x", `${cx}`);
+        fText.setAttribute("y", `${bottom + 18}`);
+        fText.setAttribute("text-anchor", "middle");
+        fText.classList.add("br-chordgrid-function-text");
+        fText.textContent = numeral;
+        g.appendChild(fText);
+      }
+    }
+  });
 }
 
-/** Draw beat slash */
-function drawBeatSlash(g: SVGElement, x: number, y: number) {
+/** Draws one beat slash as a short diagonal line, the notation's rhythm-slash style */
+function drawBeatSlash(g: Element, cx: number, cy: number, space: number) {
   const svgNS = "http://www.w3.org/2000/svg";
-  const slash = document.createElementNS(svgNS, "line");
-  slash.setAttribute("x1", `${x - 6}`);
-  slash.setAttribute("y1", `${y + 8}`);
-  slash.setAttribute("x2", `${x + 6}`);
-  slash.setAttribute("y2", `${y - 8}`);
-  slash.setAttribute("stroke-width", "2");
-  slash.classList.add("br-chordgrid-slash");
-  g.appendChild(slash);
+  const half = space * 0.6;
+  const line = document.createElementNS(svgNS, "line");
+  line.setAttribute("x1", `${cx - half}`);
+  line.setAttribute("y1", `${cy + half}`);
+  line.setAttribute("x2", `${cx + half}`);
+  line.setAttribute("y2", `${cy - half}`);
+  line.setAttribute("stroke-width", "2.5");
+  line.classList.add("br-chordgrid-slash");
+  g.appendChild(line);
 }
 
-/** Draw simile / percent repeat symbol */
-function drawSimile(g: SVGElement, cx: number, cy: number) {
+/** Reads the numerator from a time signature such as "4/4" or "3/4" */
+function beatsIn(timeSig: string): number {
+  const n = parseInt(timeSig.split("/")[0], 10);
+  return Number.isFinite(n) && n > 0 ? n : 4;
+}
+
+/** Applies the left and right barlines to a stave, matching staff notation */
+function applyBarline(stave: Stave, measure: ChordGridMeasure) {
+  if (measure.startBarline === "repeat-begin") {
+    stave.setBegBarType(Barline.type.REPEAT_BEGIN);
+  }
+  if (measure.barline === "double") {
+    stave.setEndBarType(Barline.type.DOUBLE);
+  }
+}
+
+/** Draws the right-edge end or repeat-end barline flush with the staff, as staff notation does */
+function drawRightEdgeBarline(stave: Stave, measure: ChordGridMeasure) {
+  if (measure.barline !== "end" && measure.barline !== "repeat-end") return;
+  const ctx = stave.getContext();
+  if (!ctx) return;
+
+  const top = stave.getTopLineTopY();
+  const height = stave.getBottomLineBottomY() - top;
+  const right = stave.getX() + stave.getWidth();
+
+  const thickWidth = 4.5;
+  const thickX = right - thickWidth;
+  ctx.fillRect(thickX, top, thickWidth, height);
+
+  if (measure.barline === "end") {
+    ctx.fillRect(thickX - 3, top, 1, height);
+    return;
+  }
+
+  const thinX = thickX - 3;
+  ctx.fillRect(thinX, top, 1, height);
+  const dotRadius = 2;
+  const dotX = thinX - 4 - dotRadius;
+  const spacing = stave.getSpacingBetweenLines();
+  const midY = top + height / 2;
+  ctx.beginPath();
+  ctx.arc(dotX, midY - spacing / 2, dotRadius, 0, Math.PI * 2, false);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(dotX, midY + spacing / 2, dotRadius, 0, Math.PI * 2, false);
+  ctx.fill();
+}
+
+/** Draws a "%" simile sign centered on the given point */
+function drawSimile(g: Element, cx: number, cy: number) {
   const svgNS = "http://www.w3.org/2000/svg";
-  const slash = document.createElementNS(svgNS, "line");
-  slash.setAttribute("x1", `${cx - 10}`);
-  slash.setAttribute("y1", `${cy + 10}`);
-  slash.setAttribute("x2", `${cx + 10}`);
-  slash.setAttribute("y2", `${cy - 10}`);
-  slash.setAttribute("stroke-width", "2.5");
-  slash.classList.add("br-chordgrid-slash");
-  g.appendChild(slash);
-
-  const dot1 = document.createElementNS(svgNS, "circle");
-  dot1.setAttribute("cx", `${cx - 6}`);
-  dot1.setAttribute("cy", `${cy - 6}`);
-  dot1.setAttribute("r", "3");
-  dot1.classList.add("br-chordgrid-repeat-dot");
-  g.appendChild(dot1);
-
-  const dot2 = document.createElementNS(svgNS, "circle");
-  dot2.setAttribute("cx", `${cx + 6}`);
-  dot2.setAttribute("cy", `${cy + 6}`);
-  dot2.setAttribute("r", "3");
-  dot2.classList.add("br-chordgrid-repeat-dot");
-  g.appendChild(dot2);
+  const t = document.createElementNS(svgNS, "text");
+  t.setAttribute("x", `${cx}`);
+  t.setAttribute("y", `${cy}`);
+  t.setAttribute("text-anchor", "middle");
+  t.classList.add("br-chordgrid-chord-text");
+  applyChordTextStyle(t);
+  t.textContent = "%";
+  g.appendChild(t);
 }
 
 /** Draw chord name with typography */
@@ -265,6 +301,7 @@ function drawChordSvg(
   text.setAttribute("y", `${y}`);
   text.setAttribute("text-anchor", align === "center" ? "middle" : "start");
   text.classList.add("br-chordgrid-chord-text");
+  applyChordTextStyle(text);
 
   // Root
   const rootTspan = document.createElementNS(svgNS, "tspan");

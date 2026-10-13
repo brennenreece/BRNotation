@@ -64,14 +64,16 @@ export interface ChordGridMeasure {
   number: number;
   section?: string; // e.g. "Verse", "Chorus"
   cells: ChordGridCell[];
-  repeatBegin?: boolean;
-  repeatEnd?: boolean;
-  ending?: number; // 1 or 2
+  startBarline?: "repeat-begin"; // left edge, same as the staff notation
+  barline?: "single" | "double" | "repeat-end" | "end"; // right edge, same as the staff notation
 }
 
 export interface ChordGridScore {
   title?: string;
   timeSignature: string;
+  key?: string; // used for roman-numeral functions
+  showFunctions: boolean; // "chord function = true"
+  showMeasureNumbers: boolean; // "measure numbers = true"
   measuresPerRow: number;
   measures: ChordGridMeasure[];
 }

@@ -2,6 +2,7 @@ import {
   App,
   Editor,
   MarkdownPostProcessorContext,
+  MarkdownRenderer,
   MarkdownView,
   Notice,
   Plugin,
@@ -9,11 +10,15 @@ import {
   Setting,
 } from "obsidian";
 import { AudioSynthesizer } from "./audio/audioSynthesizer";
+import helpMarkdown from "../HELP.md";
 import { parseBRNotationBlock } from "./parser/dslParser";
 import { TUNING_PRESETS } from "./parser/scales";
 import { renderChordGrid } from "./renderer/chordGridRenderer";
 import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
+import { VexFlow } from "vexflow";
+import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, applyChordFont, loadBundledFonts } from "./fonts/musicFonts";
+import { MetricsDefaults } from "vexflow";
 
 interface BRNotationPluginSettings {
   defaultTuning: string;
@@ -22,6 +27,9 @@ interface BRNotationPluginSettings {
   defaultScaleFrets: number;
   maxMeasuresPerLine: number;
   tabLineSpacing: number;
+  chordFont: string;
+  chordFontSize: number;
+  staffFont: string;
 }
 
 const DEFAULT_SETTINGS: BRNotationPluginSettings = {
@@ -31,6 +39,9 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   defaultScaleFrets: 12,
   maxMeasuresPerLine: 4,
   tabLineSpacing: 16,
+  chordFont: "system",
+  chordFontSize: 16,
+  staffFont: "bravura",
 };
 
 export default class BRNotationPlugin extends Plugin {
@@ -38,6 +49,7 @@ export default class BRNotationPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
+    await loadBundledFonts();
 
     // Register Markdown Code Block Processor for ```brnotation
     this.registerMarkdownCodeBlockProcessor(
@@ -80,7 +92,7 @@ export default class BRNotationPlugin extends Plugin {
     // Command: Insert chord grid
     this.addCommand({
       id: "insert-chord-grid",
-      name: "Insert lead-sheet chord grid",
+      name: "Insert chord chart",
       editorCallback: (editor: Editor) => {
         const sample = "```brnotation\ntype: chordgrid\ntitle: 12-Bar Blues\ntime: 4/4\nper-row: 4\n\n[Blues]\n|: C7 | F7 | C7 | C7 :|\n| F7 | F7 | C7 | A7 |\n| Dm7 | G7 | C7 A7 | Dm7 G7 |\n```\n";
         editor.replaceSelection(sample);
@@ -117,12 +129,27 @@ export default class BRNotationPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (this.settings.chordFont === "jazz") this.settings.chordFont = "julesjazz";
     AudioSynthesizer.getInstance().setMuted(!this.settings.enableAudio);
+    this.applyFontSettings();
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
     AudioSynthesizer.getInstance().setMuted(!this.settings.enableAudio);
+    this.applyFontSettings();
+    // Re-render open notes so the new font shows immediately.
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.view instanceof MarkdownView) leaf.view.previewMode?.rerender(true);
+    });
+  }
+
+  /** Applies the chord and staff font choices to the document and VexFlow. */
+  applyFontSettings() {
+    applyChordFont(this.settings.chordFont, this.settings.chordFontSize);
+    const staff = STAFF_FONT_OPTIONS[this.settings.staffFont] ?? STAFF_FONT_OPTIONS.bravura;
+    VexFlow.setFonts(staff.vexflow);
+    MetricsDefaults.NoteHead.fontScale = staff.noteheadScale;
   }
 
   /** Render the parsed block into the note document */
@@ -145,15 +172,17 @@ export default class BRNotationPlugin extends Plugin {
       (parsed.mode === "chord" ? parsed.chordDiagram?.name : null) ||
       `BRNotation [${parsed.mode.toUpperCase()}]`;
 
-    // Create h3 element for the title
-    const titleEl = header.createEl("h3", { text: titleText });
-    titleEl.style.margin = "0";
+    // Show the title for notation, tab, and coupled blocks. Other modes keep the header hidden.
+    const isStaffMode = !!parsed.notationScore;
+    const hasStaffTitle = isStaffMode && !!parsed.notationScore?.title;
+    if (hasStaffTitle) {
+      header.createEl("h3", { text: titleText, cls: "br-notation-title" });
+    } else {
+      header.style.display = "none";
+    }
 
     // Body
     const body = container.createDiv({ cls: "br-notation-body" });
-
-    // Hide header if not needed or just remove it to maximize space
-    header.style.display = "none";
 
     try {
       if (parsed.mode === "chordgrid" && parsed.chordGridScore) {
@@ -166,6 +195,8 @@ export default class BRNotationPlugin extends Plugin {
         renderVexflowScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
           tabLineSpacing: this.settings.tabLineSpacing,
+          staffFontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
+          noteheadScale: STAFF_FONT_OPTIONS[this.settings.staffFont]?.noteheadScale ?? 1,
         });
       }
     } catch (err) {
@@ -260,5 +291,45 @@ class BRNotationSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+      .setName("Chord symbol font")
+      .setDesc("Font used for chord names in chord charts and chord grids.")
+      .addDropdown((dd) => {
+        for (const [key, opt] of Object.entries(CHORD_FONT_OPTIONS)) dd.addOption(key, opt.label);
+        dd.setValue(this.plugin.settings.chordFont).onChange(async (val) => {
+          this.plugin.settings.chordFont = val;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Chord symbol font size")
+      .setDesc("Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(10, 32, 1)
+          .setValue(this.plugin.settings.chordFontSize)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.chordFontSize = val;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Staff notation font")
+      .setDesc("Music font used for staff and tablature notation. Changes apply to newly rendered blocks.")
+      .addDropdown((dd) => {
+        for (const [key, opt] of Object.entries(STAFF_FONT_OPTIONS)) dd.addOption(key, opt.label);
+        dd.setValue(this.plugin.settings.staffFont).onChange(async (val) => {
+          this.plugin.settings.staffFont = val;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    containerEl.createEl("h2", { text: "User Guide" });
+    const helpEl = containerEl.createDiv({ cls: "br-settings-help" });
+    void MarkdownRenderer.render(this.app, helpMarkdown, helpEl, "", this.plugin);
   }
 }

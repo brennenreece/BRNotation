@@ -29,6 +29,9 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let clef: any = "treble";
   let tuningPreset = "standard";
   let measuresPerRow = 4;
+  let showFunctions = false;
+  let showMeasureNumbers = false;
+  let gridKey: string | undefined = undefined;
 
   // Chord diagram fields
   let chordName = "Chord";
@@ -70,6 +73,23 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
     if (lower.startsWith("key:")) {
       keySignature = trimmed.slice(4).trim();
+      gridKey = keySignature;
+      continue;
+    }
+    if (/^chord[\s-]*function\s*[:=]?\s*(true|yes|on)$/i.test(trimmed)) {
+      showFunctions = true;
+      continue;
+    }
+    if (/^chord[\s-]*function\s*[:=]?\s*(false|no|off)$/i.test(trimmed)) {
+      showFunctions = false;
+      continue;
+    }
+    if (/^measure[\s-]*numbers?\s*[:=]?\s*(true|yes|on)$/i.test(trimmed)) {
+      showMeasureNumbers = true;
+      continue;
+    }
+    if (/^measure[\s-]*numbers?\s*[:=]?\s*(false|no|off)$/i.test(trimmed)) {
+      showMeasureNumbers = false;
       continue;
     }
     if (lower.startsWith("clef:")) {
@@ -142,7 +162,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 
   // Process mode
   if (mode === "chordgrid") {
-    const chordGridScore = parseChordGrid(contentLines, title, timeSignature, measuresPerRow);
+    const chordGridScore = parseChordGrid(contentLines, title, timeSignature, measuresPerRow, gridKey, showFunctions, showMeasureNumbers);
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
     const chordDiagram: ChordDiagramData = {
@@ -171,70 +191,64 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   }
 }
 
-/** Parses lead-sheet chord grids */
+/** Parses chord charts. Barline tokens match the staff notation parser (|, ||, |., |:, :|, :|:). */
 function parseChordGrid(
   lines: string[],
   title: string | undefined,
   timeSignature: string,
-  measuresPerRow: number
+  measuresPerRow: number,
+  key: string | undefined,
+  showFunctions: boolean,
+  showMeasureNumbers: boolean
 ): ChordGridScore {
   const measures: ChordGridMeasure[] = [];
-  let currentSection: string | undefined = undefined;
   let measureCount = 1;
 
+  // Each measure is the text between barline tokens. A [Section] header labels the next measure.
+  let pendingSection: string | undefined = undefined;
+  const flush = (segment: string, closing: ClosingBarline, opening: BarlineType) => {
+    const chords = segment.trim().split(/\s+/).filter(Boolean);
+    if (chords.length === 0) return;
+    measures.push({
+      number: measureCount++,
+      section: pendingSection,
+      cells: [{ chords, simile: chords.includes("%") }],
+      startBarline: opening === "repeat-begin" ? "repeat-begin" : undefined,
+      barline: closing === "single" ? undefined : closing,
+    });
+    pendingSection = undefined;
+  };
+
+  let openingBar: BarlineType = "single";
+  let segment = "";
   for (const line of lines) {
-    let text = line.trim();
-    // Section header e.g. [Verse] or [Chorus]
+    const text = line.trim();
     const secMatch = text.match(/^\[(.*?)\]$/);
     if (secMatch) {
-      currentSection = secMatch[1];
+      pendingSection = secMatch[1];
       continue;
     }
-
-    // Measure parts separated by '|'
-    if (text.startsWith("|")) text = text.slice(1);
-    if (text.endsWith("|")) text = text.slice(0, -1);
-
-    const mParts = text.split("|");
-    for (let part of mParts) {
-      part = part.trim();
-      if (!part) continue;
-
-      let repeatBegin = false;
-      let repeatEnd = false;
-      if (part.startsWith(":")) {
-        repeatBegin = true;
-        part = part.slice(1).trim();
+    const parts = text.split(/(:\|:|\|\||\|:|:\||\|\.|\|)/);
+    for (const part of parts) {
+      if (part === undefined) continue;
+      const bar = BARLINE_TOKENS[part];
+      if (bar) {
+        flush(segment, bar.closing, openingBar);
+        segment = "";
+        openingBar = bar.opening;
+      } else {
+        segment += part + " ";
       }
-      if (part.endsWith(":")) {
-        repeatEnd = true;
-        part = part.slice(0, -1).trim();
-      }
-
-      const chords = part.split(/\s+/).filter(Boolean);
-      const cells = [
-        {
-          chords: chords.map((c) => (c === "/" ? "/" : c === "%" ? "%" : c)),
-          simile: chords.includes("%"),
-        },
-      ];
-
-      measures.push({
-        number: measureCount++,
-        section: currentSection,
-        cells,
-        repeatBegin,
-        repeatEnd,
-      });
-
-      // Section only applies to the first measure of that section
-      currentSection = undefined;
     }
   }
+  flush(segment, "single", openingBar);
 
   return {
     title,
     timeSignature,
+    key,
+    showFunctions,
+    showMeasureNumbers,
     measuresPerRow,
     measures,
   };

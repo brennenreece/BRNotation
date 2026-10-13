@@ -33,6 +33,7 @@ const context = await esbuild.context({
     "@codemirror/view",
     ...builtins,
   ],
+  loader: { ".md": "text" },
   format: "cjs",
   target: "es2020",
   logLevel: "info",

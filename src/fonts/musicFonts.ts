@@ -1,0 +1,79 @@
+import { MUSIC_FONT_DATA } from "./fontData";
+import { setChordFontStyle } from "../renderer/chordGridRenderer";
+
+/**
+ * Chord symbol fonts. Each text face covers letters, digits, and the common chord
+ * symbols. The system option uses the Obsidian UI font.
+ */
+export const CHORD_FONT_OPTIONS: Record<
+  string,
+  { label: string; family: string; scale: number; spacing: number; weight: number }
+> = {
+  system: { label: "System default", family: "var(--font-sans)", scale: 1, spacing: 0, weight: 700 },
+  // Jazz faces are condensed and only ship Regular, so they are set larger and spaced out. Bold is
+  // not applied because the browser would synthesize it and thicken the accidentals.
+  julesjazz: { label: "JulesJazz (jazz chord charts)", family: "\"JulesJazzText\", var(--font-sans)", scale: 1.4, spacing: 1.5, weight: 400 },
+  musejazz: { label: "MuseJazz (jazz chord charts)", family: "\"MuseJazzText\", var(--font-sans)", scale: 1.4, spacing: 1.5, weight: 400 },
+};
+
+/**
+ * Staff notation font choices. `vexflow` is the VexFlow family name. `noteheadScale`
+ * scales the notehead so it matches Bravura's size against the same staff spacing.
+ * Values are the notehead height ratio to Bravura (0.250 em), measured from each font.
+ */
+export const STAFF_FONT_OPTIONS: Record<string, { label: string; vexflow: string; noteheadScale: number }> = {
+  bravura: { label: "Bravura (standard)", vexflow: "Bravura", noteheadScale: 1 },
+  petaluma: { label: "Petaluma (handwritten)", vexflow: "Petaluma", noteheadScale: 0.762 },
+  leland: { label: "Leland (MuseScore)", vexflow: "Leland", noteheadScale: 0.943 },
+  jazz: { label: "JulesJazz (jazz)", vexflow: "JulesJazz", noteheadScale: 0.926 },
+  gootville: { label: "Gootville (engraved)", vexflow: "Gootville", noteheadScale: 0.926 },
+  musejazz: { label: "MuseJazz (jazz)", vexflow: "MuseJazz", noteheadScale: 0.926 },
+};
+
+/** Bundled font data key → CSS family name it is registered under. */
+const REGISTERED_FAMILIES: Record<string, string> = {
+  JulesJazzText: "JulesJazzText",
+  Bravura: "Bravura",
+  Leland: "Leland",
+  Petaluma: "Petaluma",
+  JulesJazz: "JulesJazz",
+  Gootville: "Gootville",
+  MuseJazz: "MuseJazz",
+  MuseJazzText: "MuseJazzText",
+};
+
+let fontsLoaded: Promise<void> | null = null;
+
+/** Registers the bundled music fonts with the document. Safe to call repeatedly. */
+export function loadBundledFonts(): Promise<void> {
+  if (fontsLoaded) return fontsLoaded;
+  fontsLoaded = (async () => {
+    if (typeof FontFace === "undefined") return;
+    for (const [key, family] of Object.entries(REGISTERED_FAMILIES)) {
+      const data = MUSIC_FONT_DATA[key];
+      if (!data) continue;
+      try {
+        const face = new FontFace(family, `url(${data})`);
+        await face.load();
+        (document.fonts as unknown as { add(f: FontFace): void }).add(face);
+      } catch (err) {
+        console.warn(`BRNotation: failed to load font ${family}`, err);
+      }
+    }
+  })();
+  return fontsLoaded;
+}
+
+/** Applies the chosen chord font by setting a CSS variable used by chord text. */
+export function applyChordFont(choice: string, baseSize: number): void {
+  const option = CHORD_FONT_OPTIONS[choice] ?? CHORD_FONT_OPTIONS.system;
+  document.body.style.setProperty("--br-chord-font", option.family);
+  setChordFontStyle(resolveFontFamily(option.family), baseSize * option.scale, option.spacing, option.weight);
+}
+
+/** Replaces var(--font-sans) with Obsidian's UI font, so SVG attributes can use it. */
+function resolveFontFamily(family: string): string {
+  if (!family.includes("var(")) return family;
+  const uiFont = getComputedStyle(document.body).getPropertyValue("--font-sans").trim();
+  return family.replace(/var\(--font-sans\)/g, uiFont || "sans-serif");
+}
