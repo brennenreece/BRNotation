@@ -566,3 +566,9 @@
   font-family: var(--font-sans);
 }
 
+
+.br-notation-errors {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  padding: 4px 8px;
+}

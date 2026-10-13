@@ -74,7 +74,7 @@ export default class BRNotationPlugin extends Plugin {
       id: "insert-tablature",
       name: "Insert guitar tablature block",
       editorCallback: (editor: Editor) => {
-        const sample = "```brnotation\nmode: tab\ntuning: standard\n\n| 0:1/q 2:1/q 3:1/q 5:1/q | 2:1/h 0:2/h |\n```\n";
+        const sample = "```brnotation\nmode: tab\ntuning: standard\n\n| :q 1/1 2/1 3/1 5/1 | :h 2/1 0/2 |\n```\n";
         editor.replaceSelection(sample);
       },
     });
@@ -84,7 +84,7 @@ export default class BRNotationPlugin extends Plugin {
       id: "insert-coupled-notation-tab",
       name: "Insert coupled notation and tab block",
       editorCallback: (editor: Editor) => {
-        const sample = "```brnotation\nmode: coupled\ntitle: Autumn Leaves Theme\ntime: 4/4\nkey: G\n\n| e4(0:1)/q f#4(2:1)/q g4(3:1)/q a4(5:1)/q | f#4(2:1)/h d4(0:2)/h |\n```\n";
+        const sample = "```brnotation\nmode: coupled\ntitle: Autumn Leaves Theme\ntime: 4/4\nkey: G\n\n| :q e4(1/1) f#4(2/1) g4(3/1) a4(5/1) | :h f#4(2/1) d4(0/2) |\n```\n";
         editor.replaceSelection(sample);
       },
     });
@@ -183,6 +183,12 @@ export default class BRNotationPlugin extends Plugin {
 
     // Body
     const body = container.createDiv({ cls: "br-notation-body" });
+
+    // Show tokens the parser could not read, so typos are visible instead of silently dropped.
+    if (parsed.errors && parsed.errors.length > 0) {
+      const warn = container.createDiv({ cls: "br-notation-errors" });
+      for (const msg of parsed.errors) warn.createDiv({ text: msg });
+    }
 
     try {
       if (parsed.mode === "chordgrid" && parsed.chordGridScore) {

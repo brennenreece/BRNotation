@@ -177,27 +177,37 @@ Use `mode: tab` for guitar tablature.
 mode: tab
 tuning: standard
 
-| 0:1/q 2:1/q 3:1/q 5:1/q | 2:1/h 0:2/h |
+| :q 1/1 2/1 3/1 5/1 | :h 2/1 0/2 |
 ```
 
 ### Tab syntax
 
-Write each note as `string:fret/duration`:
+Write each note as `fret/string`, the same order VexTab uses. The fret comes first, then a slash, then the string number.
 
 ```
-0:1/q     string 1, fret 1, quarter note
-3:5/8     string 3, fret 5, eighth note
-6:0/h     string 6, fret 0 (open), half note
+1/1       fret 1 on string 1
+5/3       fret 5 on string 3
+0/6       fret 0 (open) on string 6
 ```
+
+Durations are set with a directive written as its own token, for example `:q`. The directive applies to every following note until the next directive:
+
+```
+:q 1/1 2/1     two quarter notes
+:8 5/3 7/3     two eighth notes
+:h 0/6         half note
+```
+
+Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteenth, `:32` thirty-second. A dot after the value is not supported yet.
 
 - **Strings are numbered 1 to 6.** String 1 is the lowest string (E2 in standard tuning) and string 6 is the highest (E4). A 4-string bass uses strings 1 to 4.
-- Use `r/` followed by a duration for a rest.
+- A rest is `r`. It uses the current duration, like a note.
 
 ```brnotation
 mode: tab
 tuning: drop-d
 
-| 0:1/q r/q 2:3/q 2:5/q | 0:0/h r/h |
+| :q 1/1 r 3/2 5/2 | :h 0/0 r |
 ```
 
 ### Tuning
@@ -208,14 +218,14 @@ Set `tuning:` to one of the names in [Tunings and scales](#tunings-and-scales). 
 mode: tab
 tuning: bass-4
 
-| 0:1/q 2:3/q 3:5/q | 1:0/h |
+| :q 1/1 3/2 5/3 | :h 0/1 |
 ```
 
 ---
 
 ## Coupled notation and tablature
 
-Use `mode: coupled` to show standard notation with tablature below it. Each note is written as `pitch(string:fret)/duration`. The notation and tab digits are drawn from the same entry, so they line up.
+Use `mode: coupled` to show standard notation with tablature below it. Each note is written as `pitch(fret/string)`, and durations use the same `:q` directives as tab. The notation and tab digits are drawn from the same entry, so they line up.
 
 ```brnotation
 # Autumn Leaves Theme
@@ -223,11 +233,11 @@ mode: coupled
 time: 4/4
 key: G
 
-| e4(0:1)/q f#4(2:1)/q g4(3:1)/q a4(5:1)/q | f#4(2:1)/h d4(0:2)/h |
+| :q e4(1/1) f#4(2/1) g4(3/1) a4(5/1) | :h f#4(2/1) d4(0/2) |
 ```
 
 - The pitch inside the parentheses sets the note on the staff.
-- The `string:fret` pair sets the fret number shown in tab.
+- The `fret/string` pair inside the parentheses sets the tab position.
 - Keep the pitch and the tab position consistent with the tuning. The plugin does not check this for you.
 
 ---
@@ -521,6 +531,8 @@ key: Bb
 ---
 
 ## Troubleshooting
+
+- **A line of red text under a block** means the parser could not read that token. It names the token and measure. The rest of the block still renders.
 
 **The block shows raw text instead of a score.**
 The block probably has no `brnotation` language tag. Check that the opening fence reads ` ```brnotation `.

@@ -186,7 +186,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     return { mode, rawText, fretboardScale, errors };
   } else {
     // notation, tab, or coupled
-    const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning);
+    const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
     return { mode, rawText, notationScore, errors };
   }
 }
@@ -262,7 +262,8 @@ function parseNotationContent(
   timeSignature: string,
   keySignature: string,
   clef: any,
-  tuning: string[]
+  tuning: string[],
+  errors: string[] = []
 ): NotationScore {
   const measures: ScoreMeasure[] = [];
   let currentMeasureNumber = 1;
@@ -276,13 +277,20 @@ function parseNotationContent(
   // e.g. ":|:" is a repeat-end on the left and a repeat-begin on the right.
   let openingBar: BarlineType = "single";
   let segment = "";
+  let stickyDuration: DurationType = "q";
   const flush = (closingBar: ClosingBarline) => {
     const trimmed = segment.trim();
     segment = "";
     const notes: ScoreNote[] = [];
     for (const token of tokenizeMeasure(trimmed)) {
-      const scoreNote = parseNoteToken(token, mode);
+      const dirMatch = token.match(/^:([whq]|8|16|32)$/i);
+      if (dirMatch) {
+        stickyDuration = dirMatch[1].toLowerCase() as DurationType;
+        continue;
+      }
+      const scoreNote = parseNoteToken(token, mode, stickyDuration);
       if (scoreNote) notes.push(scoreNote);
+      else errors.push(`Could not read "${token}" in measure ${currentMeasureNumber}`);
     }
     if (notes.length > 0) {
       measures.push({
@@ -354,7 +362,8 @@ const BARLINE_TOKENS: Record<string, { closing: ClosingBarline; opening: Barline
 /** Helper to tokenize notes and chord symbols in a measure */
 function tokenizeMeasure(measureStr: string): string[] {
   const tokens: string[] = [];
-  const regex = /"([^"]+)"|\[([^\]]+)\]\/(\w+)(\.?)(~?)|([^\s]+)/g;
+  // `:dur` directives are split out so `:q` is its own token even when written right after a note.
+  const regex = /"([^"]+)"|\[([^\]]+)\]\/(\w+)(\.?)(~?)|(:(?:[whq]|8|16|32)(?=\s|$))|([^\s]+)/gi;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(measureStr)) !== null) {
@@ -363,8 +372,12 @@ function tokenizeMeasure(measureStr: string): string[] {
   return tokens;
 }
 
-/** Parses a single note or chord token */
-function parseNoteToken(token: string, mode: "notation" | "tab" | "coupled"): ScoreNote | null {
+/** Parses a single note or chord token. `defaultDuration` is the sticky `:dur` value in effect. */
+function parseNoteToken(
+  token: string,
+  mode: "notation" | "tab" | "coupled",
+  defaultDuration: DurationType = "q"
+): ScoreNote | null {
   const id = "note-" + Math.random().toString(36).substring(2, 9);
 
   // Check if it's a chord symbol e.g. "Am7"
@@ -378,32 +391,30 @@ function parseNoteToken(token: string, mode: "notation" | "tab" | "coupled"): Sc
     };
   }
 
-  // Rest: r/q, rest/8, r/w
-  const restMatch = token.match(/^(?:r|rest)\/([whq8]|16|32)(\.?)/i);
+  // Rest: `r`, or `r/q` / `rest/8` with an explicit duration
+  const restMatch = token.match(/^(?:r|rest)(?:\/([whq8]|16|32)(\.?))?$/i);
   if (restMatch) {
     return {
       id,
-      duration: restMatch[1].toLowerCase() as DurationType,
+      duration: restMatch[1] ? (restMatch[1].toLowerCase() as DurationType) : defaultDuration,
       isRest: true,
       dots: restMatch[2] === "." ? 1 : 0,
     };
   }
 
-  // Tab note: e.g. 3:5/8 or 0:1/q or 5:3/8h
-  const tabMatch = token.match(/^(\d+):(\d+)\/([whq8]|16|32)(\.?)(~?)([hpsv]?)/i);
+  // Tab note: fret/string, e.g. 5/3 or 0/1h. Duration comes from the sticky `:dur` directive.
+  const tabMatch = token.match(/^(\d+)\/(\d+)(~?)([hpsv]?)$/i);
   if (tabMatch) {
     const fret = parseInt(tabMatch[1], 10);
     const str = parseInt(tabMatch[2], 10);
-    const duration = tabMatch[3].toLowerCase() as DurationType;
-    const dots = tabMatch[4] === "." ? 1 : 0;
-    const tied = tabMatch[5] === "~";
-    const technique = (tabMatch[6]?.toLowerCase() as any) || undefined;
+    const tied = tabMatch[3] === "~";
+    const technique = (tabMatch[4]?.toLowerCase() as any) || undefined;
 
     return {
       id,
-      duration,
+      duration: defaultDuration,
       isRest: false,
-      dots,
+      dots: 0,
       tied,
       tabPositions: [{ str, fret, technique }],
     };
@@ -443,14 +454,15 @@ function parseNoteToken(token: string, mode: "notation" | "tab" | "coupled"): Sc
   }
 
   // Single standard pitch: e.g. c4/q, f#4/8, bb3/h., g4/q~
-  const noteMatch = token.match(/^([a-gA-G])([#bn]?)(-?\d+)(?:\((\d+):(\d+)\))?\/([whq8]|16|32)(\.?)(~?)/);
+  // Pitch with optional fret/string in parens, optional legacy /dur suffix, optional tie.
+  const noteMatch = token.match(/^([a-gA-G])([#bn]?)(-?\d+)(?:\((\d+)\/(\d+)\))?(?:\/([whq8]|16|32)(\.?))?(~?)$/i);
   if (noteMatch) {
     const step = noteMatch[1].toLowerCase() as any;
     const accidental = (noteMatch[2] || undefined) as any;
     const octave = parseInt(noteMatch[3], 10);
     const tabFret = noteMatch[4] ? parseInt(noteMatch[4], 10) : undefined;
     const tabStr = noteMatch[5] ? parseInt(noteMatch[5], 10) : undefined;
-    const duration = noteMatch[6].toLowerCase() as DurationType;
+    const duration = noteMatch[6] ? (noteMatch[6].toLowerCase() as DurationType) : defaultDuration;
     const dots = noteMatch[7] === "." ? 1 : 0;
     const tied = noteMatch[8] === "~";
 
