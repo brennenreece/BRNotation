@@ -1,6 +1,6 @@
 {
   "name": "br-notation",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "Notation plugin for Obsidian notes",
   "main": "main.js",
   "scripts": {
