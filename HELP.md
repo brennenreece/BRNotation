@@ -531,6 +531,8 @@ Open **Settings → BRNotation** to change these options.
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
 | Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
 | Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |
+| Tab number font | System default | Font for fret numbers on tablature. Options: System default, Monospace, Serif, JulesJazz (jazz), MuseJazz (jazz). |
+| Tab number font size | 13 | Size in points for fret numbers on tablature (8–24). |
 
 ### Font options
 

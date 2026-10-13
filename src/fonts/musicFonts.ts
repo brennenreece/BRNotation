@@ -17,6 +17,17 @@ export const CHORD_FONT_OPTIONS: Record<
 };
 
 /**
+ * Tab fret number font choices. `family` is a CSS font stack applied to the fret numbers.
+ */
+export const TAB_FONT_OPTIONS: Record<string, { label: string; family: string }> = {
+  system: { label: "System default", family: "var(--font-sans)" },
+  mono: { label: "Monospace", family: "var(--font-monospace)" },
+  serif: { label: "Serif", family: "Georgia, \"Times New Roman\", serif" },
+  julesjazz: { label: "JulesJazz (jazz)", family: "\"JulesJazzText\", var(--font-sans)" },
+  musejazz: { label: "MuseJazz (jazz)", family: "\"MuseJazzText\", var(--font-sans)" },
+};
+
+/**
  * Staff notation font choices. `vexflow` is the VexFlow family name. `noteheadScale`
  * scales the notehead so it matches Bravura's size against the same staff spacing.
  * Values are the notehead height ratio to Bravura (0.250 em), measured from each font.

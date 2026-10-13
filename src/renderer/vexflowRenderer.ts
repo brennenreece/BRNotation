@@ -29,6 +29,10 @@ export interface VexflowRenderOptions {
   staffFontFamily?: string;
   /** Notehead size multiplier for the staff font, relative to Bravura */
   noteheadScale?: number;
+  /** CSS font stack for tab fret numbers */
+  tabFontFamily?: string;
+  /** Tab fret number size in points */
+  tabFontSize?: number;
   scale?: number;
   interactive?: boolean;
   activeMeasureIndex?: number;
@@ -290,8 +294,9 @@ export function renderVexflowScore(
         const tabNoteAny = vfTabNote as any;
         if (tabNoteAny.fretElement && Array.isArray(tabNoteAny.fretElement)) {
           tabNoteAny.fretElement.forEach((el: any) => {
-            if (el && typeof el.setFontSize === "function") {
-              el.setFontSize(13); // 13pt bold font
+            if (el && typeof el.setFont === "function") {
+              // Family falls back to VexFlow's default when no choice is passed.
+              el.setFont(options.tabFontFamily ?? el.fontInfo.family, options.tabFontSize ?? 13, "bold");
             }
           });
         }

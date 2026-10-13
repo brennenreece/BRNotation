@@ -18,7 +18,7 @@ import { renderChordGrid } from "./renderer/chordGridRenderer";
 import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
 import { VexFlow } from "vexflow";
-import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, applyChordFont, loadBundledFonts } from "./fonts/musicFonts";
+import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordFont, loadBundledFonts } from "./fonts/musicFonts";
 import { MetricsDefaults } from "vexflow";
 
 interface BRNotationPluginSettings {
@@ -31,6 +31,8 @@ interface BRNotationPluginSettings {
   chordFont: string;
   chordFontSize: number;
   staffFont: string;
+  tabFont: string;
+  tabFontSize: number;
   diagramStyle: DiagramDotStyle;
 }
 
@@ -44,6 +46,8 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   chordFont: "system",
   chordFontSize: 16,
   staffFont: "bravura",
+  tabFont: "system",
+  tabFontSize: 13,
   diagramStyle: "classic",
 };
 
@@ -206,6 +210,8 @@ export default class BRNotationPlugin extends Plugin {
           tabLineSpacing: this.settings.tabLineSpacing,
           staffFontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
           noteheadScale: STAFF_FONT_OPTIONS[this.settings.staffFont]?.noteheadScale ?? 1,
+          tabFontFamily: TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family,
+          tabFontSize: this.settings.tabFontSize,
         });
       }
     } catch (err) {
@@ -350,6 +356,31 @@ class BRNotationSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    new Setting(containerEl)
+      .setName("Tab number font")
+      .setDesc("Font for fret numbers on tablature. Changes apply to newly rendered blocks.")
+      .addDropdown((dd) => {
+        for (const [key, opt] of Object.entries(TAB_FONT_OPTIONS)) dd.addOption(key, opt.label);
+        dd.setValue(this.plugin.settings.tabFont).onChange(async (val) => {
+          this.plugin.settings.tabFont = val;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Tab number font size")
+      .setDesc("Size in points for fret numbers on tablature (default 13).")
+      .addSlider((sl) =>
+        sl
+          .setLimits(8, 24, 1)
+          .setValue(this.plugin.settings.tabFontSize)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.tabFontSize = val;
+            await this.plugin.saveSettings();
+          })
+      );
 
     containerEl.createEl("h2", { text: "User Guide" });
     const helpEl = containerEl.createDiv({ cls: "br-settings-help" });

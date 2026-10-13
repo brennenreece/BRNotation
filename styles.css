@@ -331,7 +331,15 @@
 .br-fretboard-map-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.br-fretboard-map-container .br-fretboard-svg {
+  max-width: none;
+  flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .br-fretboard-map-container .br-diagram-title,
