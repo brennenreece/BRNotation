@@ -37,7 +37,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let showFunctions = false;
   let showMeasureNumbers = false;
   let gridKey: string | undefined = undefined;
-  let staffRender: "vexflow" | "font" = "vexflow";
+  let staffRender: "vexflow" | "font" = "font";
 
   // Chord diagram fields
   let chordName = "Chord";
@@ -240,8 +240,8 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   } else {
     // notation, tab, or coupled
     const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
-    if (notationScore && staffRender === "font" && mode === "notation") {
-      notationScore.render = "font";
+    if (notationScore && mode === "notation") {
+      notationScore.render = staffRender;
     }
     return { mode, rawText, notationScore, errors };
   }
