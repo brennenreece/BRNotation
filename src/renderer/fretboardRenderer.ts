@@ -368,7 +368,7 @@ function renderCustomNotes(
     const isRoot = pc === rootPc;
 
     const g = document.createElementNS(svgNS, "g");
-    g.classList.add("br-diagram-marker");
+    g.classList.add("br-diagram-marker", isRoot ? "is-root" : "is-note");
     if (options.onNoteClick) {
       g.style.cursor = "pointer";
       g.addEventListener("click", () => options.onNoteClick!(stringIndex, note.fret));
