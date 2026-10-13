@@ -11,6 +11,7 @@ import {
   Renderer,
   Stave,
   StaveConnector,
+  StaveModifier,
   StaveNote,
   StaveTie,
   TabNote,
@@ -115,10 +116,10 @@ export function renderVexflowScore(
       stave.setContext(context).draw();
 
       // Draw end barline using the Barline class for proper alignment
-      const barline = new Barline();
-      // Standard stave lines are 40px high, typically starting at y + 20
-      (barline as any).draw(context, xPos + measureWidth, yNotation + 20, 40);
-    }
+      const barline = new Barline(Barline.type.SINGLE);
+      barline.setPosition(StaveModifier.Position.END);
+      barline.setStave(stave);
+      barline.setContext(context).draw();
     }
 
     // Build tablature stave with legible 16px line spacing
@@ -133,18 +134,11 @@ export function renderVexflowScore(
       }
       tabStave.setContext(context).draw();
 
-      // Draw end barline using direct SVG for perfect alignment and theme matching
-      const svg = wrapper.querySelector("svg");
-      if (svg) {
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", (xPos + measureWidth).toString());
-        line.setAttribute("y1", (yTab + 5).toString());
-        line.setAttribute("x2", (xPos + measureWidth).toString());
-        line.setAttribute("y2", (yTab + tabStaveHeight - 5).toString());
-        line.setAttribute("stroke", "var(--text-normal)");
-        line.setAttribute("stroke-width", "1");
-        svg.appendChild(line);
-      }
+      // Draw end barline using the Barline class for proper alignment
+      const barline = new Barline(Barline.type.SINGLE);
+      barline.setPosition(StaveModifier.Position.END);
+      barline.setStave(tabStave);
+      barline.setContext(context).draw();
     }
 
     // Add brace / bracket connector if coupled
