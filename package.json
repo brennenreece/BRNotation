@@ -20,5 +20,8 @@
     "obsidian": "latest",
     "tslib": "^2.6.0",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "vexflow": "^5.0.0"
   }
 }
