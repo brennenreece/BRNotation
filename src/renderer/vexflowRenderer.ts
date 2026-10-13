@@ -120,7 +120,7 @@ export function renderVexflowScore(
       barline.setPosition(StaveModifier.Position.END);
       barline.setStave(stave);
       barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      barline.setContext(context).draw();
+      barline.setContext(context).drawWithStyle();
     }
 
     // Build tablature stave with legible 16px line spacing
@@ -140,7 +140,7 @@ export function renderVexflowScore(
       barline.setPosition(StaveModifier.Position.END);
       barline.setStave(tabStave);
       barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      barline.setContext(context).draw();
+      barline.setContext(context).drawWithStyle();
     }
 
     // Add brace / bracket connector if coupled
