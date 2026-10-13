@@ -202,7 +202,7 @@ Durations are set with a directive written as its own token, for example `:q`. T
 
 Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteenth, `:32` thirty-second. A dot after the value is not supported yet.
 
-- **Strings are numbered 1 to 6.** String 1 is the lowest string (E2 in standard tuning) and string 6 is the highest (E4). A 4-string bass uses strings 1 to 4.
+- **Strings are numbered 1 to 6.** String 1 is the highest string (high E, E4 in standard tuning) and string 6 is the lowest (low E, E2). The order from string 6 to string 1 is low E, A, D, G, B, high E. A 4-string bass uses strings 1 to 4.
 - A rest is `r`. It uses the current duration, like a note.
 
 ```brnotation
@@ -351,6 +351,8 @@ frets: x 2 4 4 3 2
 fingers: - 1 3 4 2 1
 base-fret: 2
 ```
+
+Chord boxes use the same look and dot styles as fretboard maps, so a `style:` line works here too. See [Diagram styles](#diagram-styles).
 
 Use `tuning:` to draw a chord for another tuning:
 
@@ -545,6 +547,8 @@ The music fonts are open source (SIL Open Font License 1.1) and are bundled with
 - **MuseJazz** is a handwritten jazz-style font.
 - **JulesJazz** is a jazz-style font.
 
+For **Tab number font**, the fret numbers use the font you choose. JulesJazz and MuseJazz give jazz-style digits. The **Tab number font size** setting controls their size.
+
 For **Chord symbol font**, JulesJazz and MuseJazz give jazz-style chord names. Both include letters, digits, and the usual chord symbols (#, b, +, -, °, ø).
 
 Changes to the staff font apply to blocks rendered after the change. Reopen or re-render a note to see the new font.
@@ -579,7 +583,7 @@ key: Bb
 The block probably has no `brnotation` language tag. Check that the opening fence reads ` ```brnotation `.
 
 **A note is in the wrong place.**
-Check the octave (`c4` is middle C). For tab, check the string number. String 1 is the lowest string.
+Check the octave (`c4` is middle C). For tab, check the string number. String 1 is the high E string and string 6 is the low E string.
 
 **A measure is cut off or spills onto the next line.**
 Each measure must be enclosed by barlines. Check for a missing `|`. Use `per-row:` in chord grids to change the number of measures per line.

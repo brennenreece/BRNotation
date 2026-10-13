@@ -207,7 +207,8 @@ export function renderVexflowScore(
         } else if (note.tabPositions && note.tabPositions.length > 0) {
           // Derive pitch from tab string/fret and tuning
           note.tabPositions.forEach((tp, pIdx) => {
-            const strIdx = tp.str - 1; // 1-based string
+            // Tab numbering: string 1 = high E. Tuning index 0 = low E, so invert.
+            const strIdx = score.tuning.length - tp.str;
             const openNote = score.tuning[strIdx] || "E2";
             const midi = noteToMidi(openNote) + tp.fret;
             const noteName = midiToVexKey(midi);
@@ -275,7 +276,7 @@ export function renderVexflowScore(
             const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`);
             const tf = midiToStringFret(midi, score.tuning);
             if (tf) {
-              positions.push({ str: tf.strIndex + 1, fret: tf.fret });
+              positions.push({ str: score.tuning.length - tf.strIndex, fret: tf.fret });
             } else {
               positions.push({ str: 1, fret: 0 });
             }

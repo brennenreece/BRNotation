@@ -13,7 +13,7 @@ export interface NotePitch {
 }
 
 export interface TabPosition {
-  str: number; // 1-indexed (1 is highest string, e.g. high E)
+  str: number; // 1-indexed (1 is highest string, high E)
   fret: number;
   technique?: "h" | "p" | "b" | "s" | "v" | "pm";
 }
