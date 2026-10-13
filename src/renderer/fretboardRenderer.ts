@@ -18,7 +18,7 @@ export function renderChordDiagram(
   options: { width?: number; height?: number } = {}
 ): HTMLElement {
   containerEl.empty();
-  const wrapper = containerEl.createDiv({ cls: "br-chord-box-container" });
+  const wrapper = containerEl.createDiv({ cls: "br-diagram br-chord-box-container" });
 
   const numStrings = data.frets.length || 6;
   const numFrets = 5;
@@ -32,14 +32,14 @@ export function renderChordDiagram(
   svg.setAttribute("width", `${width}`);
   svg.setAttribute("height", `${height}`);
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.classList.add("br-chord-box-svg");
+  svg.classList.add("br-diagram-svg", "br-chord-box-svg");
 
   // Title / Chord Name
   const title = document.createElementNS(svgNS, "text");
   title.setAttribute("x", `${width / 2}`);
   title.setAttribute("y", "24");
   title.setAttribute("text-anchor", "middle");
-  title.classList.add("br-chord-box-title");
+  title.classList.add("br-diagram-title");
   title.textContent = data.name;
   svg.appendChild(title);
 
@@ -60,7 +60,7 @@ export function renderChordDiagram(
     baseText.setAttribute("x", `${padLeft - 8}`);
     baseText.setAttribute("y", `${padTop + fretSpacing * 0.7}`);
     baseText.setAttribute("text-anchor", "end");
-    baseText.classList.add("br-chord-box-base-fret");
+    baseText.classList.add("br-diagram-aux");
     baseText.textContent = `${baseFret}fr`;
     svg.appendChild(baseText);
   }
@@ -71,10 +71,7 @@ export function renderChordDiagram(
   nut.setAttribute("y1", `${padTop}`);
   nut.setAttribute("x2", `${padLeft + gridWidth}`);
   nut.setAttribute("y2", `${padTop}`);
-  nut.classList.add(baseFret === 1 ? "br-chord-box-nut" : "br-chord-box-fret");
-  if (baseFret === 1) {
-    nut.setAttribute("stroke-width", "4");
-  }
+  nut.classList.add(baseFret === 1 ? "br-diagram-nut" : "br-diagram-line");
   svg.appendChild(nut);
 
   // Fret horizontal lines
@@ -85,7 +82,7 @@ export function renderChordDiagram(
     fLine.setAttribute("y1", `${y}`);
     fLine.setAttribute("x2", `${padLeft + gridWidth}`);
     fLine.setAttribute("y2", `${y}`);
-    fLine.classList.add("br-chord-box-fret");
+    fLine.classList.add("br-diagram-line");
     svg.appendChild(fLine);
   }
 
@@ -97,7 +94,7 @@ export function renderChordDiagram(
     sLine.setAttribute("y1", `${padTop}`);
     sLine.setAttribute("x2", `${x}`);
     sLine.setAttribute("y2", `${padTop + gridHeight}`);
-    sLine.classList.add("br-chord-box-string");
+    sLine.classList.add("br-diagram-string");
     svg.appendChild(sLine);
   }
 
@@ -113,7 +110,7 @@ export function renderChordDiagram(
       xText.setAttribute("x", `${x}`);
       xText.setAttribute("y", `${padTop - 8}`);
       xText.setAttribute("text-anchor", "middle");
-      xText.classList.add("br-chord-box-muted");
+      xText.classList.add("br-diagram-muted");
       xText.textContent = "✕";
       svg.appendChild(xText);
     } else if (fretVal === 0) {
@@ -122,7 +119,7 @@ export function renderChordDiagram(
       oCircle.setAttribute("cx", `${x}`);
       oCircle.setAttribute("cy", `${padTop - 10}`);
       oCircle.setAttribute("r", "4.5");
-      oCircle.classList.add("br-chord-box-open");
+      oCircle.classList.add("br-diagram-open");
       svg.appendChild(oCircle);
     } else if (typeof fretVal === "number" && fretVal > 0) {
       // Finger dot
@@ -133,7 +130,7 @@ export function renderChordDiagram(
         dot.setAttribute("cx", `${x}`);
         dot.setAttribute("cy", `${y}`);
         dot.setAttribute("r", "7");
-        dot.classList.add("br-chord-box-dot");
+        dot.classList.add("br-diagram-dot");
         svg.appendChild(dot);
 
         // Finger number if provided
@@ -143,7 +140,7 @@ export function renderChordDiagram(
           fText.setAttribute("x", `${x}`);
           fText.setAttribute("y", `${y + 3.5}`);
           fText.setAttribute("text-anchor", "middle");
-          fText.classList.add("br-chord-box-finger-text");
+          fText.classList.add("br-diagram-label");
           fText.textContent = `${finger}`;
           svg.appendChild(fText);
         }
@@ -162,10 +159,10 @@ export function renderFretboardScale(
   options: { width?: number; height?: number; onNoteClick?: (strIdx: number, fret: number) => void } = {}
 ): HTMLElement {
   containerEl.empty();
-  const wrapper = containerEl.createDiv({ cls: "br-fretboard-map-container" });
+  const wrapper = containerEl.createDiv({ cls: "br-diagram br-fretboard-map-container" });
 
   if (data.title) {
-    const titleEl = wrapper.createDiv({ cls: "br-fretboard-title" });
+    const titleEl = wrapper.createDiv({ cls: "br-diagram-title" });
     titleEl.setText(data.title);
   }
 
@@ -183,7 +180,7 @@ export function renderFretboardScale(
   svg.setAttribute("width", `${containerWidth}`);
   svg.setAttribute("height", `${height}`);
   svg.setAttribute("viewBox", `0 0 ${containerWidth} ${height}`);
-  svg.classList.add("br-fretboard-svg");
+  svg.classList.add("br-diagram-svg", "br-fretboard-svg");
 
   const padLeft = 45;
   const padRight = 20;
@@ -205,10 +202,9 @@ export function renderFretboardScale(
     fLine.setAttribute("y2", `${padTop + boardHeight}`);
 
     if (f === 0) {
-      fLine.setAttribute("stroke-width", "5");
-      fLine.classList.add("br-fretboard-nut");
+      fLine.classList.add("br-diagram-nut");
     } else {
-      fLine.classList.add("br-fretboard-fret");
+      fLine.classList.add("br-diagram-line");
     }
     svg.appendChild(fLine);
 
@@ -218,7 +214,7 @@ export function renderFretboardScale(
       numText.setAttribute("x", `${x - fretSpacing / 2}`);
       numText.setAttribute("y", `${padTop + boardHeight + 16}`);
       numText.setAttribute("text-anchor", "middle");
-      numText.classList.add("br-fretboard-num");
+      numText.classList.add("br-diagram-aux");
       numText.textContent = `${f}`;
       svg.appendChild(numText);
     }
@@ -241,7 +237,7 @@ export function renderFretboardScale(
     const thickWidth = 4;
     const widthStep = numStrings > 1 ? (thickWidth - thinWidth) / (numStrings - 1) : 0;
     sLine.setAttribute("stroke-width", `${thinWidth + (strNumber - 1) * widthStep}`);
-    sLine.classList.add("br-fretboard-string");
+    sLine.classList.add("br-diagram-string");
     svg.appendChild(sLine);
   }
 
@@ -278,7 +274,7 @@ export function renderFretboardScale(
         const x = f === 0 ? padLeft - 6 : padLeft + (f - minFret) * fretSpacing - fretSpacing / 2;
 
         const g = document.createElementNS(svgNS, "g");
-        g.classList.add("br-fretboard-marker");
+        g.classList.add("br-diagram-marker");
         if (isRoot) g.classList.add("is-root");
 
         if (options.onNoteClick) {
@@ -290,14 +286,14 @@ export function renderFretboardScale(
         circle.setAttribute("cx", `${x}`);
         circle.setAttribute("cy", `${y}`);
         circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
-        circle.classList.add(isRoot ? "br-fretboard-root-dot" : "br-fretboard-note-dot");
+        circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note");
         g.appendChild(circle);
 
         const text = document.createElementNS(svgNS, "text");
         text.setAttribute("x", `${x}`);
         text.setAttribute("y", `${y + 3.5}`);
         text.setAttribute("text-anchor", "middle");
-        text.classList.add("br-fretboard-dot-text");
+        text.classList.add("br-diagram-label");
 
         if (data.displayMode === "notes") {
           text.textContent = NOTE_NAMES[pc];

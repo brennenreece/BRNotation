@@ -204,8 +204,111 @@
 }
 
 /* ==========================================================================
-   Chord Box & Fretboard Diagram SVG Styles
+   Shared diagram styles: chord boxes and fretboard maps.
+   Both renderers use the br-diagram-* classes, so one change here updates both.
    ========================================================================== */
+
+.br-diagram {
+  --br-diagram-title-size: 16px;
+  --br-diagram-label-size: 9px;
+  --br-diagram-aux-size: 11px;
+  --br-diagram-muted-size: 12px;
+  --br-diagram-line-color: #000;
+  --br-diagram-line-width: 1.5;
+  --br-diagram-nut-width: 4;
+  --br-diagram-string-color: var(--text-muted);
+  --br-diagram-dot-fill: var(--text-normal);
+  --br-diagram-dot-stroke: var(--text-normal);
+  --br-diagram-dot-stroke-width: 1.5;
+  --br-diagram-dot-radius-scale: 1;
+  --br-diagram-label-color: var(--background-primary);
+  --br-diagram-root-fill: var(--interactive-accent);
+  --br-diagram-root-label-color: #ffffff;
+  --br-diagram-note-fill: var(--background-secondary-alt);
+  --br-diagram-note-stroke: var(--text-muted);
+  --br-diagram-note-label-color: var(--text-normal);
+  --br-diagram-aux-color: var(--text-muted);
+  --br-diagram-open-stroke: var(--text-normal);
+}
+
+.br-diagram-svg {
+  overflow: visible;
+}
+
+.br-diagram-title {
+  font-size: var(--br-diagram-title-size);
+  font-weight: 700;
+  fill: var(--text-normal);
+  color: var(--text-normal);
+  margin-bottom: 8px;
+}
+
+.br-diagram-line {
+  stroke: var(--br-diagram-line-color);
+  stroke-width: var(--br-diagram-line-width);
+}
+
+.br-diagram-nut {
+  stroke: var(--br-diagram-line-color);
+  stroke-width: var(--br-diagram-nut-width);
+}
+
+.br-diagram-string {
+  stroke: var(--br-diagram-string-color);
+}
+
+.br-diagram-dot {
+  fill: var(--br-diagram-dot-fill);
+  stroke: var(--br-diagram-dot-stroke);
+  stroke-width: var(--br-diagram-dot-stroke-width);
+}
+
+.br-diagram-dot.is-root {
+  fill: var(--br-diagram-root-fill);
+  stroke: var(--br-diagram-root-fill);
+}
+
+.br-diagram-dot.is-note {
+  fill: var(--br-diagram-note-fill);
+  stroke: var(--br-diagram-note-stroke);
+}
+
+.br-diagram-label {
+  font-size: var(--br-diagram-label-size);
+  font-weight: 700;
+  font-family: var(--font-sans);
+  fill: var(--br-diagram-label-color);
+}
+
+.br-diagram-marker.is-root .br-diagram-label {
+  fill: var(--br-diagram-root-label-color);
+}
+
+.br-diagram-marker.is-note .br-diagram-label {
+  fill: var(--br-diagram-note-label-color);
+}
+
+.br-diagram-open {
+  fill: none;
+  stroke: var(--br-diagram-open-stroke);
+  stroke-width: var(--br-diagram-line-width);
+}
+
+.br-diagram-muted {
+  fill: var(--br-diagram-aux-color);
+  font-size: var(--br-diagram-muted-size);
+  font-family: var(--font-sans);
+}
+
+.br-diagram-aux {
+  fill: var(--br-diagram-aux-color);
+  font-size: var(--br-diagram-aux-size);
+  font-family: var(--font-monospace);
+}
+
+.br-diagram-marker {
+  transition: transform 0.1s ease;
+}
 
 .br-chord-box-container,
 .br-fretboard-map-container {
@@ -214,90 +317,9 @@
   align-items: center;
 }
 
-.br-chord-box-title,
-.br-fretboard-title {
-  font-size: 16px;
-  font-weight: 700;
-  fill: var(--text-normal);
-  color: var(--text-normal);
-  margin-bottom: 8px;
-}
-
-.br-chord-box-nut,
-.br-fretboard-nut {
-  stroke: var(--text-normal);
-}
-
-.br-chord-box-fret,
-.br-fretboard-fret {
-  stroke: #000;
-  stroke-width: 1.5;
-}
-
-.br-chord-box-string {
-  stroke: var(--text-muted);
-}
-
-.br-fretboard-string {
-  stroke: #000;
-}
-
-.br-chord-box-dot {
-  fill: var(--text-normal);
-}
-
-.br-chord-box-finger-text {
-  fill: var(--background-primary);
-  font-size: 9px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-}
-
-.br-chord-box-open {
-  fill: none;
-  stroke: var(--text-normal);
-  stroke-width: 1.5;
-}
-
-.br-chord-box-muted {
-  fill: var(--text-muted);
-  font-size: 12px;
-  font-family: var(--font-sans);
-}
-
-.br-chord-box-base-fret,
-.br-fretboard-num,
-.br-fretboard-tuning-label {
-  fill: var(--text-muted);
-  font-size: 11px;
-  font-family: var(--font-monospace);
-}
-
-.br-fretboard-marker {
-  transition: transform 0.1s ease;
-}
-
-.br-fretboard-note-dot {
-  fill: var(--background-secondary-alt);
-  stroke: var(--text-muted);
-  stroke-width: 1.5;
-}
-
-.br-fretboard-root-dot {
-  fill: var(--interactive-accent);
-  stroke: var(--interactive-accent);
-  stroke-width: 1.5;
-}
-
-.br-fretboard-dot-text {
-  font-size: 9px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  fill: var(--text-normal);
-}
-
-.br-fretboard-marker.is-root .br-fretboard-dot-text {
-  fill: #ffffff;
+.br-fretboard-map-container .br-diagram-title,
+.br-chord-box-container .br-diagram-title {
+  text-align: center;
 }
 
 /* ==========================================================================
