@@ -164,11 +164,6 @@ export function renderFretboardScale(
   containerEl.empty();
   const wrapper = containerEl.createDiv({ cls: "br-fretboard-map-container" });
 
-  if (data.title) {
-    const titleEl = wrapper.createDiv({ cls: "br-fretboard-title" });
-    titleEl.setText(data.title);
-  }
-
   const tuning = data.tuning || TUNING_PRESETS.standard.notes;
   const numStrings = tuning.length; // e.g. 6
   const minFret = data.minFret || 0;
