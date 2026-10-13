@@ -119,6 +119,7 @@ export function renderVexflowScore(
       const barline = new Barline(Barline.type.SINGLE);
       barline.setPosition(StaveModifier.Position.END);
       barline.setStave(stave);
+      barline.setStyle({ strokeStyle: "var(--text-normal)" });
       barline.setContext(context).draw();
     }
 
@@ -138,6 +139,7 @@ export function renderVexflowScore(
       const barline = new Barline(Barline.type.SINGLE);
       barline.setPosition(StaveModifier.Position.END);
       barline.setStave(tabStave);
+      barline.setStyle({ strokeStyle: "var(--text-normal)" });
       barline.setContext(context).draw();
     }
 
