@@ -115,12 +115,13 @@ export function renderVexflowScore(
       }
       stave.setContext(context).draw();
 
-      // Draw end barline using the Barline class for proper alignment
-      const barline = new Barline(Barline.type.SINGLE);
+      // Add end barline as modifier before drawing
+      const barlineType = mIdx === score.measures.length - 1 ? Barline.type.END : Barline.type.SINGLE;
+      const barline = new Barline(barlineType);
       barline.setPosition(StaveModifier.Position.END);
-      barline.setStave(stave);
       barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      barline.setContext(context).drawWithStyle();
+      stave.addModifier(barline);
+      stave.setContext(context).draw();
     }
 
     // Build tablature stave with legible 16px line spacing
@@ -133,14 +134,14 @@ export function renderVexflowScore(
       if (isFirstInLine) {
         tabStave.addClef("tab");
       }
-      tabStave.setContext(context).draw();
 
-      // Draw end barline using the Barline class for proper alignment
-      const barline = new Barline(Barline.type.SINGLE);
+      // Add end barline as modifier before drawing
+      const barlineType = mIdx === score.measures.length - 1 ? Barline.type.END : Barline.type.SINGLE;
+      const barline = new Barline(barlineType);
       barline.setPosition(StaveModifier.Position.END);
-      barline.setStave(tabStave);
       barline.setStyle({ strokeStyle: "var(--text-normal)" });
-      barline.setContext(context).drawWithStyle();
+      tabStave.addModifier(barline);
+      tabStave.setContext(context).draw();
     }
 
     // Add brace / bracket connector if coupled
