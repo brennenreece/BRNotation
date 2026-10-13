@@ -102,7 +102,6 @@
 .br-notation-svg text[font-size*="8"] {
   fill: var(--text-normal) !important;
   font-weight: 700 !important;
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif !important;
 }
 
 .br-notation-svg .vf-stavenote:hover,
