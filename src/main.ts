@@ -209,6 +209,9 @@ export default class BRNotationPlugin extends Plugin {
         renderGlyphScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
           fontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
+          tabLineSpacing: this.settings.tabLineSpacing,
+          tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
+          tabFontSize: this.settings.tabFontSize,
         });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {

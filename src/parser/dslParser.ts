@@ -240,7 +240,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   } else {
     // notation, tab, or coupled
     const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
-    if (notationScore && mode === "notation") {
+    if (notationScore && (mode === "notation" || mode === "coupled")) {
       notationScore.render = staffRender;
     }
     return { mode, rawText, notationScore, errors };

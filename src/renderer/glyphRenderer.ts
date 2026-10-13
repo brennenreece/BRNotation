@@ -1,9 +1,11 @@
 /**
  * Staff notation drawn with SMuFL glyphs from the bundled music fonts, rather than
- * VexFlow's glyph paths. Used when a block sets `glyphs: font`. Tab and coupled
- * blocks still use VexFlow.
+ * VexFlow's glyph paths. Used for notation and coupled blocks unless they set
+ * `glyphs: vexflow`. Coupled blocks get a tab row under each staff. Tab-only blocks
+ * still use VexFlow.
  */
 import { NotationScore, ScoreMeasure, ScoreNote, NotePitch } from "../types";
+import { midiToStringFret, noteToMidi } from "../parser/scales";
 
 export interface GlyphRenderOptions {
   width?: number;
@@ -12,6 +14,11 @@ export interface GlyphRenderOptions {
   /** Multiplier on the staff space, matching the VexFlow staff font sizing. */
   scale?: number;
   maxMeasuresPerLine?: number;
+  /** Vertical space in px between tab strings (coupled blocks). */
+  tabLineSpacing?: number;
+  /** CSS font stack for tab fret numbers (coupled blocks). */
+  tabFontFamily?: string;
+  tabFontSize?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -99,9 +106,9 @@ function glyph(
 }
 
 /**
- * Renders staff notation (notation mode) with font glyphs. The layout is a simplified
- * engine: fixed spacing per duration, beams for eighth and sixteenth runs, and no
- * coupled tab.
+ * Renders staff notation (notation and coupled modes) with font glyphs. The layout is a
+ * simplified engine: fixed spacing per duration, stems with flags (no beams), and no
+ * key or time signatures.
  */
 export function renderGlyphScore(
   containerEl: HTMLElement,
@@ -122,8 +129,15 @@ export function renderGlyphScore(
   // One staff space in px. The staff is four spaces tall.
   const lineSpacing = 10 * scale;
   const staffHeight = 4 * lineSpacing + 40;
+  const isCoupled = score.mode === "coupled";
+  const numStrings = score.tuning.length || 6;
+  const tabSpacing = Math.max(8, options.tabLineSpacing ?? 16);
+  const tabHeight = (numStrings - 1) * tabSpacing;
+  const blockHeight = isCoupled ? staffHeight + tabHeight + 20 : staffHeight;
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
-  const totalHeight = totalLines * (staffHeight + 20) + 20;
+  const totalHeight = totalLines * (blockHeight + 20) + 20;
+  const tabFont = options.tabFontFamily ?? family;
+  const tabSize = options.tabFontSize ?? 13;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -145,7 +159,7 @@ export function renderGlyphScore(
     const xPos = measureInLine * measureWidth;
     const isLastOnLine = measureInLine === countOnLine - 1;
     const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidth;
-    const y0 = 20 + lineIndex * (staffHeight + 20);
+    const y0 = 20 + lineIndex * (blockHeight + 20);
 
     // Staff lines
     for (let i = 0; i < STAFF_LINE_COUNT; i++) {
@@ -183,9 +197,113 @@ export function renderGlyphScore(
     }
 
     layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing);
+
+    if (isCoupled) {
+      const tabY0 = y0 + staffHeight;
+      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, measureInLine === 0, xPos, thisMeasureWidth);
+    }
   }
 
   return wrapper;
+}
+
+/** Slot centre x for note `i` of `n`, matching `layoutMeasureNotes`. */
+function slotX(i: number, n: number, xStart: number, width: number): number {
+  return xStart + (width / n) * i + width / n / 2;
+}
+
+/**
+ * Draws one measure of the tab row under the staff: string lines, fret numbers centred
+ * on each note's slot, and the TAB clef and connector at the start of a line.
+ */
+function drawTabMeasure(
+  svg: SVGElement,
+  measure: ScoreMeasure,
+  xStart: number,
+  width: number,
+  tabY0: number,
+  tabSpacing: number,
+  numStrings: number,
+  tuning: string[],
+  family: string,
+  size: number,
+  isLineStart: boolean,
+  xPos: number,
+  measureWidth: number
+): void {
+  const stroke = "stroke: var(--text-normal, #000)";
+  const tabBottom = tabY0 + (numStrings - 1) * tabSpacing;
+  for (let s = 0; s < numStrings; s++) {
+    svg.appendChild(
+      el("line", { x1: xPos, x2: xPos + measureWidth, y1: tabY0 + s * tabSpacing, y2: tabY0 + s * tabSpacing, style: stroke, "stroke-width": 1 })
+    );
+  }
+  svg.appendChild(
+    el("line", { x1: xPos + measureWidth, x2: xPos + measureWidth, y1: tabY0, y2: tabBottom, style: stroke, "stroke-width": 1 })
+  );
+
+  if (isLineStart) {
+    svg.appendChild(el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabBottom, style: stroke, "stroke-width": 1 }));
+    const mid = tabY0 + ((numStrings - 1) * tabSpacing) / 2;
+    const label = ["T", "A", "B"];
+    label.forEach((ch, i) => {
+      const t = el("text", {
+        x: xPos + 4,
+        y: mid + (i - 1) * size * 1.1 + size * 0.35,
+        "font-family": family,
+        "font-size": size,
+        "font-weight": "bold",
+        "text-anchor": "start",
+        style: "fill: var(--text-normal, #000)",
+      }) as SVGTextElement;
+      t.textContent = ch;
+      svg.appendChild(t);
+    });
+  }
+
+  const n = measure.notes.length;
+  if (!n) return;
+  // Same slots as the staff notes, so each fret number sits under its notehead.
+  measure.notes.forEach((note, i) => {
+    const x = slotX(i, n, xStart, width);
+    const positions = tabPositionsFor(note, tuning);
+    for (const { str, fret } of positions) {
+      const y = tabY0 + (str - 1) * tabSpacing;
+      // Mask the string line behind the number, so the digits read cleanly.
+      const label = String(fret);
+      const w = label.length * size * 0.6 + 4;
+      svg.appendChild(
+        el("rect", { x: x - w / 2, y: y - size * 0.55, width: w, height: size * 1.1, style: "fill: var(--background-primary, #fff)" })
+      );
+      const t = el("text", {
+        x,
+        y: y + size * 0.35,
+        "font-family": family,
+        "font-size": size,
+        "font-weight": "bold",
+        "text-anchor": "middle",
+        style: "fill: var(--text-normal, #000)",
+      }) as SVGTextElement;
+      t.textContent = label;
+      svg.appendChild(t);
+    }
+  });
+}
+
+/** Tab string/fret pairs for a note, using the same rules as the VexFlow coupled tab. */
+function tabPositionsFor(note: ScoreNote, tuning: string[]): { str: number; fret: number | string }[] {
+  if (note.isRest) return [{ str: 3, fret: "X" }];
+  if (note.tabPositions && note.tabPositions.length > 0) {
+    return note.tabPositions.map((tp) => ({ str: tp.str, fret: tp.fret }));
+  }
+  if (note.pitches && note.pitches.length > 0) {
+    return note.pitches.map((p) => {
+      const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`);
+      const tf = midiToStringFret(midi, tuning);
+      return tf ? { str: tuning.length - tf.strIndex, fret: tf.fret } : { str: 1, fret: 0 };
+    });
+  }
+  return [{ str: 1, fret: 0 }];
 }
 
 /** Lays out notes across the measure in equal horizontal slots. Stems, flags, and beams are simplified. */
