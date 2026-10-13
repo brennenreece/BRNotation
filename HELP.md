@@ -78,6 +78,8 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `root:` | fretboard | Root note of the scale, such as `A` or `F#`. |
 | `scale:` | fretboard | Scale name from [Tunings and scales](#tunings-and-scales). |
 | `show:` | fretboard | `degrees` (default) or `notes`. |
+| `style:` | chord, fretboard | Dot style for the whole diagram: `classic`, `filled`, `outlined`, or `ghost`. See [Diagram styles](#diagram-styles). |
+| `notes:` | fretboard | Notes to draw, one by one, as `fret/string`. See [Entering notes one by one](#entering-notes-one-by-one). |
 
 ### Comments and titles
 
@@ -399,6 +401,42 @@ tuning: drop-d
 show: degrees
 ```
 
+### Diagram styles
+
+Chord boxes and fretboard maps share one dot style. Set it per block with `style:`, or leave it out to use the default from Settings.
+
+| Style | Look |
+|---|---|
+| `classic` | Root filled in the accent colour, other notes outlined. This is the default. |
+| `filled` | All dots filled in the root colour. |
+| `outlined` | All dots outlined, with a light fill. |
+| `ghost` | Dashed outline, for optional or passing notes. |
+
+```brnotation
+type: fretboard
+root: A
+scale: minor-pentatonic
+style: outlined
+```
+
+### Entering notes one by one
+
+Use `notes:` on a fretboard block to draw exactly the notes you list, in place of the scale. Each note is written as `fret/string`, using the same string numbers as tab (1 = high E). Each note may add two options directly after it:
+
+- `{style}` sets the dot style for that note only: `{root}`, `{classic}`, `{filled}`, `{outlined}`, or `{ghost}`.
+- `=label` replaces the note name with your own text, such as `=R` or `=b3`.
+
+```brnotation
+type: fretboard
+title: A minor pentatonic, hand-placed
+root: A
+tuning: standard
+style: outlined
+notes: 5/6{root} 8/6 5/5 7/5=R 5/4{ghost}
+```
+
+Notes can be listed in any order, and they can go anywhere on the neck. The `root:` setting still decides which dot is the root, so `{root}` is only needed to force a different dot style. Lines that fail to read appear as errors under the block.
+
 ---
 
 ## Barline reference
@@ -491,6 +529,7 @@ Open **Settings → BRNotation** to change these options.
 | Tab line spacing | 16 | Vertical space between tab strings (slider range 10 to 24). |
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
+| Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
 | Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |
 
 ### Font options

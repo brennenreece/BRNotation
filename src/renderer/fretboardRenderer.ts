@@ -1,7 +1,7 @@
 /**
  * Fretboard & Chord Diagram SVG Renderer
  */
-import { ChordDiagramData, FretboardScaleData } from "../types";
+import { ChordDiagramData, DiagramDotStyle, DiagramNote, FretboardScaleData } from "../types";
 import {
   NOTE_NAMES,
   noteToMidi,
@@ -21,6 +21,15 @@ function stringStrokeWidth(stringIndex: number, numStrings: number): number {
   const thin = 1.2;
   const thick = 2.6;
   return numStrings > 1 ? thick - (stringIndex / (numStrings - 1)) * (thick - thin) : thick;
+}
+
+/**
+ * Dot style classes. A block `style:` sets the default, and a per-note `{style}` overrides it.
+ * `classic` keeps the default look; the others change fill and stroke in styles.css.
+ */
+function dotStyleClass(style: DiagramDotStyle | "root" | undefined, isRoot: boolean): string {
+  if (style === "root" || (!style && isRoot)) return "is-root";
+  return `style-${style ?? "classic"}`;
 }
 
 /** Render a vertical chord box diagram */
@@ -146,7 +155,7 @@ export function renderChordDiagram(
         dot.setAttribute("cx", `${x}`);
         dot.setAttribute("cy", `${y}`);
         dot.setAttribute("r", `${dotRadiusFor(stringSpacing, fretSpacing)}`);
-        dot.classList.add("br-diagram-dot", "is-note");
+        dot.classList.add("br-diagram-dot", "is-note", dotStyleClass(data.dotStyle, false));
         g.appendChild(dot);
 
         // Finger number if provided
@@ -270,6 +279,12 @@ export function renderFretboardScale(
 
   const dotRadius = dotRadiusFor(stringSpacing, fretSpacing);
 
+  if (data.customPositions && data.customPositions.length > 0) {
+    renderCustomNotes(svg, data, numStrings, tuning, minFret, padLeft, fretSpacing, stringSpacing, padTop, dotRadius, options);
+    wrapper.appendChild(svg);
+    return wrapper;
+  }
+
   // Plot note markers across frets and strings
   for (let s = 0; s < numStrings; s++) {
     const displayIndex = numStrings - 1 - s;
@@ -297,7 +312,7 @@ export function renderFretboardScale(
         circle.setAttribute("cx", `${x}`);
         circle.setAttribute("cy", `${y}`);
         circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
-        circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note");
+        circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note", dotStyleClass(data.dotStyle, isRoot));
         g.appendChild(circle);
 
         const text = document.createElementNS(svgNS, "text");
@@ -320,4 +335,59 @@ export function renderFretboardScale(
 
   wrapper.appendChild(svg);
   return wrapper;
+}
+
+/**
+ * Draws notes entered with `notes:`. Each note is placed at its own fret/string,
+ * with its own dot style (`{style}`) and optional label (`=text`).
+ */
+function renderCustomNotes(
+  svg: SVGSVGElement,
+  data: FretboardScaleData,
+  numStrings: number,
+  tuning: string[],
+  minFret: number,
+  padLeft: number,
+  fretSpacing: number,
+  stringSpacing: number,
+  padTop: number,
+  dotRadius: number,
+  options: { onNoteClick?: (stringIndex: number, fret: number) => void }
+): void {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const rootPc = noteToMidi(`${data.root}4`) % 12;
+  for (const note of data.customPositions ?? []) {
+    // Tab numbering: string 1 = high E. Tuning index 0 = low E, so invert.
+    if (note.str < 1 || note.str > numStrings || note.fret < 0) continue;
+    const stringIndex = numStrings - note.str;
+    const displayIndex = numStrings - 1 - stringIndex;
+    const y = padTop + displayIndex * stringSpacing;
+    const x = note.fret === 0 ? padLeft - dotRadius - 4 : padLeft + (note.fret - minFret) * fretSpacing - fretSpacing / 2;
+
+    const pc = ((stringFretToMidi(tuning[stringIndex], note.fret) % 12) + 12) % 12;
+    const isRoot = pc === rootPc;
+
+    const g = document.createElementNS(svgNS, "g");
+    g.classList.add("br-diagram-marker");
+    if (options.onNoteClick) {
+      g.style.cursor = "pointer";
+      g.addEventListener("click", () => options.onNoteClick!(stringIndex, note.fret));
+    }
+
+    const circle = document.createElementNS(svgNS, "circle");
+    circle.setAttribute("cx", `${x}`);
+    circle.setAttribute("cy", `${y}`);
+    circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
+    circle.classList.add("br-diagram-dot", "is-note", dotStyleClass(note.style ?? data.dotStyle, isRoot));
+    g.appendChild(circle);
+
+    const text = document.createElementNS(svgNS, "text");
+    text.setAttribute("x", `${x}`);
+    text.setAttribute("y", `${y + 3.5}`);
+    text.setAttribute("text-anchor", "middle");
+    text.classList.add("br-diagram-label");
+    text.textContent = note.label ?? NOTE_NAMES[pc];
+    g.appendChild(text);
+    svg.appendChild(g);
+  }
 }

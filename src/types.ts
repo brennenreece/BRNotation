@@ -78,8 +78,13 @@ export interface ChordGridScore {
   measures: ChordGridMeasure[];
 }
 
+/** Dot style for diagram notes. `classic` marks the root filled and other notes outlined. */
+export type DiagramDotStyle = "classic" | "filled" | "outlined" | "ghost";
+export const DIAGRAM_DOT_STYLES: DiagramDotStyle[] = ["classic", "filled", "outlined", "ghost"];
+
 export interface ChordDiagramData {
   name: string;
+  dotStyle?: DiagramDotStyle;
   tuning?: string[]; // default ["E", "A", "D", "G", "B", "E"]
   frets: (number | "x")[]; // index 0 is lowest string (E2) or highest? We will standardize: 0 is lowest string (6th string)
   fingers?: (number | string | null)[];
@@ -91,6 +96,15 @@ export interface ChordDiagramData {
   };
 }
 
+/** One note from a `notes:` line. `str` is 1-based with 1 = high E, matching tab. */
+export interface DiagramNote {
+  str: number;
+  fret: number;
+  label?: string;
+  /** `root` forces the root dot style; other values override the block's dot style. */
+  style?: DiagramDotStyle | "root";
+}
+
 export interface FretboardScaleData {
   title?: string;
   root: string; // e.g. "A", "C", "F#"
@@ -99,7 +113,9 @@ export interface FretboardScaleData {
   minFret: number; // default 0
   maxFret: number; // default 12, 15, or 24
   displayMode: "degrees" | "notes";
-  customPositions?: { str: number; fret: number; label?: string; color?: string }[];
+  dotStyle?: DiagramDotStyle;
+  /** Notes entered one by one with `notes:`. When set, these replace the scale's automatic dots. */
+  customPositions?: DiagramNote[];
 }
 
 export interface ParsedBlock {

@@ -273,6 +273,23 @@
   stroke: var(--br-diagram-note-stroke);
 }
 
+/* Dot styles set by a block `style:` line or a per-note `{style}`. */
+.br-diagram-dot.style-filled {
+  fill: var(--br-diagram-root-fill);
+  stroke: var(--br-diagram-root-fill);
+}
+
+.br-diagram-dot.style-outlined {
+  fill: var(--background-primary);
+  stroke: var(--br-diagram-dot-stroke);
+}
+
+.br-diagram-dot.style-ghost {
+  fill: none;
+  stroke: var(--br-diagram-note-stroke);
+  stroke-dasharray: 3 2;
+}
+
 .br-diagram-label {
   font-size: var(--br-diagram-label-size);
   font-weight: 700;

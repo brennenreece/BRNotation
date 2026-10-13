@@ -12,6 +12,7 @@ import {
 import { AudioSynthesizer } from "./audio/audioSynthesizer";
 import helpMarkdown from "../HELP.md";
 import { parseBRNotationBlock } from "./parser/dslParser";
+import type { DiagramDotStyle } from "./types";
 import { TUNING_PRESETS } from "./parser/scales";
 import { renderChordGrid } from "./renderer/chordGridRenderer";
 import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
@@ -30,6 +31,7 @@ interface BRNotationPluginSettings {
   chordFont: string;
   chordFontSize: number;
   staffFont: string;
+  diagramStyle: DiagramDotStyle;
 }
 
 const DEFAULT_SETTINGS: BRNotationPluginSettings = {
@@ -42,6 +44,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   chordFont: "system",
   chordFontSize: 16,
   staffFont: "bravura",
+  diagramStyle: "classic",
 };
 
 export default class BRNotationPlugin extends Plugin {
@@ -194,9 +197,9 @@ export default class BRNotationPlugin extends Plugin {
       if (parsed.mode === "chordgrid" && parsed.chordGridScore) {
         renderChordGrid(body, parsed.chordGridScore);
       } else if (parsed.mode === "chord" && parsed.chordDiagram) {
-        renderChordDiagram(body, parsed.chordDiagram);
+        renderChordDiagram(body, { ...parsed.chordDiagram, dotStyle: parsed.chordDiagram.dotStyle ?? this.settings.diagramStyle });
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
-        renderFretboardScale(body, parsed.fretboardScale);
+        renderFretboardScale(body, { ...parsed.fretboardScale, dotStyle: parsed.fretboardScale.dotStyle ?? this.settings.diagramStyle });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
@@ -305,6 +308,20 @@ class BRNotationSettingTab extends PluginSettingTab {
         for (const [key, opt] of Object.entries(CHORD_FONT_OPTIONS)) dd.addOption(key, opt.label);
         dd.setValue(this.plugin.settings.chordFont).onChange(async (val) => {
           this.plugin.settings.chordFont = val;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Diagram dot style")
+      .setDesc("Default dot style for chord boxes and fretboard maps. A block's style: line or a note's {style} overrides this.")
+      .addDropdown((dd) => {
+        dd.addOption("classic", "Classic (root filled, others outlined)");
+        dd.addOption("filled", "Filled");
+        dd.addOption("outlined", "Outlined");
+        dd.addOption("ghost", "Ghost (dashed)");
+        dd.setValue(this.plugin.settings.diagramStyle).onChange(async (val) => {
+          this.plugin.settings.diagramStyle = val as DiagramDotStyle;
           await this.plugin.saveSettings();
         });
       });

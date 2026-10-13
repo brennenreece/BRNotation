@@ -6,6 +6,9 @@ import {
   ChordDiagramData,
   ChordGridMeasure,
   ChordGridScore,
+  DIAGRAM_DOT_STYLES,
+  DiagramDotStyle,
+  DiagramNote,
   DurationType,
   FretboardScaleData,
   NotationScore,
@@ -45,6 +48,8 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let minFret = 0;
   let maxFret = 12;
   let displayMode: "degrees" | "notes" = "degrees";
+  let dotStyle: DiagramDotStyle | undefined = undefined;
+  let customNotes: DiagramNote[] | undefined = undefined;
 
   // Check directive headers
   const contentLines: string[] = [];
@@ -56,6 +61,27 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
 
     const lower = trimmed.toLowerCase();
+
+    // Diagram header shared by chord boxes and fretboard maps
+    if (lower.startsWith("style:")) {
+      const raw = trimmed.slice(6).trim();
+      if (DIAGRAM_DOT_STYLES.includes(raw.toLowerCase() as DiagramDotStyle)) {
+        dotStyle = raw.toLowerCase() as DiagramDotStyle;
+      } else {
+        errors.push(`Unknown style "${raw}". Use ${DIAGRAM_DOT_STYLES.join(", ")}.`);
+      }
+      continue;
+    }
+    if (lower.startsWith("notes:")) {
+      customNotes = [];
+      for (const token of trimmed.slice(6).trim().split(/\s+/).filter(Boolean)) {
+        const note = parseDiagramNote(token);
+        if (note) customNotes.push(note);
+        else errors.push(`Could not read note "${token}". Use fret/string, such as 5/6 or 7/5{root}=R.`);
+      }
+      continue;
+    }
+
     if (lower.startsWith("type:") || lower.startsWith("mode:")) {
       const val = trimmed.split(":")[1].trim().toLowerCase() as BlockMode;
       if (["notation", "tab", "coupled", "chordgrid", "chord", "fretboard"].includes(val)) {
@@ -171,6 +197,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       frets: chordFrets,
       fingers: chordFingers,
       baseFret,
+      dotStyle,
     };
     return { mode, rawText, chordDiagram, errors };
   } else if (mode === "fretboard") {
@@ -182,6 +209,8 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       minFret,
       maxFret,
       displayMode,
+      dotStyle,
+      customPositions: customNotes,
     };
     return { mode, rawText, fretboardScale, errors };
   } else {
@@ -189,6 +218,23 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
     return { mode, rawText, notationScore, errors };
   }
+}
+
+/**
+ * Parses one `notes:` entry: `fret/string`, optionally followed by `{style}` and `=label`.
+ * Examples: 5/6, 7/5{root}, 8/4{ghost}=b3
+ */
+export function parseDiagramNote(token: string): DiagramNote | null {
+  const m = token.match(/^(\d+)\/(\d+)(?:\{(\w+)\})?(?:=(.+))?$/);
+  if (!m) return null;
+  const style = m[3]?.toLowerCase();
+  if (style && style !== "root" && !DIAGRAM_DOT_STYLES.includes(style as DiagramDotStyle)) return null;
+  return {
+    fret: parseInt(m[1], 10),
+    str: parseInt(m[2], 10),
+    style: style as DiagramNote["style"],
+    label: m[4],
+  };
 }
 
 /** Parses chord charts. Barline tokens match the staff notation parser (|, ||, |., |:, :|, :|:). */
