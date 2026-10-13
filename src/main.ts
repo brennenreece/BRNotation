@@ -20,6 +20,8 @@ interface BRNotationPluginSettings {
   defaultClef: string;
   enableAudio: boolean;
   defaultScaleFrets: number;
+  maxMeasuresPerLine: number;
+  tabLineSpacing: number;
 }
 
 const DEFAULT_SETTINGS: BRNotationPluginSettings = {
@@ -27,6 +29,8 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   defaultClef: "treble",
   enableAudio: true,
   defaultScaleFrets: 12,
+  maxMeasuresPerLine: 4,
+  tabLineSpacing: 16,
 };
 
 export default class BRNotationPlugin extends Plugin {
@@ -159,7 +163,10 @@ export default class BRNotationPlugin extends Plugin {
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
         renderFretboardScale(body, parsed.fretboardScale);
       } else if (parsed.notationScore) {
-        renderVexflowScore(body, parsed.notationScore);
+        renderVexflowScore(body, parsed.notationScore, {
+          maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
+          tabLineSpacing: this.settings.tabLineSpacing,
+        });
       }
     } catch (err) {
       body.createDiv({
@@ -224,6 +231,34 @@ class BRNotationSettingTab extends PluginSettingTab {
           this.plugin.settings.defaultClef = val;
           await this.plugin.saveSettings();
         });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum measures per line")
+      .setDesc("Most measures placed on one system. Narrow windows still show fewer per line so measures stay legible.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 8, 1)
+          .setValue(this.plugin.settings.maxMeasuresPerLine)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.maxMeasuresPerLine = val;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Tab line spacing")
+      .setDesc("Vertical distance in pixels between tablature string lines. Default is 16.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(10, 24, 1)
+          .setValue(this.plugin.settings.tabLineSpacing)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.tabLineSpacing = val;
+            await this.plugin.saveSettings();
+          });
       });
   }
 }

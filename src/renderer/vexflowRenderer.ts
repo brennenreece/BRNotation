@@ -10,6 +10,7 @@ import {
   Formatter,
   Renderer,
   Stave,
+  Voice,
   StaveConnector,
   StaveModifier,
   StaveNote,
@@ -27,6 +28,8 @@ export interface VexflowRenderOptions {
   activeMeasureIndex?: number;
   activeNoteIndex?: number;
   onNoteClick?: (measureIndex: number, noteIndex: number) => void;
+  maxMeasuresPerLine?: number;
+  tabLineSpacing?: number;
 }
 
 export function renderVexflowScore(
@@ -42,17 +45,15 @@ export function renderVexflowScore(
   const containerWidth = Math.max(baseWidth, 580);
   const scale = options.scale || 1.0;
 
-  // Adaptive measures per system:
-  // If container is narrow (< 600px), 1 measure per row
-  // If 600px - 880px, 2 measures per row
-  // Otherwise up to 3 measures per row
-  const measuresPerLine = containerWidth < 600 ? 1 : containerWidth < 880 ? 2 : 3;
+  // Measures per full line, from the user's setting. A final partial line uses its own
+  // count so its measures stretch to fill the width.
+  const measuresPerLine = Math.max(1, Math.floor(options.maxMeasuresPerLine ?? 4));
   const isCoupled = score.mode === "coupled";
   const isTab = score.mode === "tab";
   const isNotation = score.mode === "notation";
 
   // Generous stave spacing for comfortable tab line height (16px per string)
-  const tabLineSpacing = 16;
+  const tabLineSpacing = Math.max(8, options.tabLineSpacing ?? 16);
   const numStrings = score.tuning.length || 6;
   const tabStaveHeight = (numStrings - 1) * tabLineSpacing;
   const notationStaveHeight = 85;
@@ -65,10 +66,16 @@ export function renderVexflowScore(
     : notationStaveHeight + 50;
 
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
+  const lineStart = (lineIdx: number) => lineIdx * measuresPerLine;
+  const measuresOnLine = (lineIdx: number) =>
+    Math.min(measuresPerLine, score.measures.length - lineStart(lineIdx));
   const totalHeight = totalLines * staffSystemHeight + 40;
 
+  // Padding around the drawing so edge barlines aren't clipped by the SVG viewBox
+  const PAD = 8;
+
   const renderer = new Renderer(wrapper, Renderer.Backends.SVG);
-  renderer.resize(containerWidth, totalHeight);
+  renderer.resize(containerWidth + PAD * 2, totalHeight + PAD * 2);
   const context = renderer.getContext();
   context.scale(scale, scale);
 
@@ -76,7 +83,7 @@ export function renderVexflowScore(
   const svgEl = wrapper.querySelector("svg");
   if (svgEl) {
     svgEl.classList.add("br-notation-svg");
-    svgEl.setAttribute("viewBox", `0 0 ${containerWidth} ${totalHeight}`);
+    svgEl.setAttribute("viewBox", `${-PAD} ${-PAD} ${containerWidth + PAD * 2} ${totalHeight + PAD * 2}`);
     svgEl.setAttribute("width", "100%");
     svgEl.removeAttribute("height");
     svgEl.style.maxWidth = "100%";
@@ -85,16 +92,20 @@ export function renderVexflowScore(
   }
 
   const ties: StaveTie[] = [];
+  const tabNoteCenters: number[] = [];
 
   for (let mIdx = 0; mIdx < score.measures.length; mIdx++) {
     const measure = score.measures[mIdx];
     const lineIndex = Math.floor(mIdx / measuresPerLine);
     const measureInLine = mIdx % measuresPerLine;
     const isFirstInLine = measureInLine === 0;
-    const isLastInLine = measureInLine === measuresPerLine - 1 || mIdx === score.measures.length - 1;
-
-    const measureWidth = Math.floor((containerWidth - 30) / measuresPerLine);
-    const xPos = 15 + measureInLine * measureWidth;
+    const countOnLine = measuresOnLine(lineIndex);
+    // Staves span the full container width with no margins; the last measure on a line
+    // takes any leftover pixels so the line reaches the right edge exactly.
+    const measureWidth = Math.floor(containerWidth / countOnLine);
+    const xPos = measureInLine * measureWidth;
+    const isLastOnLine = measureInLine === countOnLine - 1;
+    const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidth;
     const yNotation = 18 + lineIndex * staffSystemHeight;
     const yTab = isCoupled ? yNotation + notationStaveHeight + 35 : yNotation;
 
@@ -103,7 +114,7 @@ export function renderVexflowScore(
 
     // Build standard notation stave
     if (isNotation || isCoupled) {
-      stave = new Stave(xPos, yNotation, measureWidth);
+      stave = new Stave(xPos, yNotation, thisMeasureWidth);
       if (isFirstInLine) {
         stave.addClef(measure.clef || score.clef || "treble");
         if (measure.timeSignature || score.timeSignature) {
@@ -115,23 +126,32 @@ export function renderVexflowScore(
       }
 
       applyBarline(stave, measure);
-
-      stave.setContext(context).draw();
     }
 
     // Build tablature stave with legible 16px line spacing
     if (isTab || isCoupled) {
-      tabStave = new TabStave(xPos, yTab, measureWidth, {
+      tabStave = new TabStave(xPos, yTab, thisMeasureWidth, {
         spacingBetweenLinesPx: tabLineSpacing,
         numLines: numStrings,
       });
       tabStave.setNumLines(numStrings);
-      if (isFirstInLine) {
-        tabStave.addClef("tab");
-      }
       applyBarline(tabStave, measure);
+    }
 
+    // Coupled: start the tab notes at the same x as the notation notes. The notation stave
+    // is pushed right by its clef, key, and time signature, which the tab stave doesn't have.
+    if (stave && tabStave) {
+      stave.format();
+      tabStave.setNoteStartX(stave.getNoteStartX());
+    }
+
+    if (stave) {
+      stave.setContext(context).draw();
+      drawRightEdgeBarline(stave, measure);
+    }
+    if (tabStave) {
       tabStave.setContext(context).draw();
+      drawRightEdgeBarline(tabStave, measure);
     }
 
     // Add a simple vertical line connector if coupled
@@ -269,14 +289,35 @@ export function renderVexflowScore(
     });
 
     // Format and draw notes
-    if (stave && staveNotes.length > 0) {
+    if (stave && tabStave && staveNotes.length > 0 && tabNotes.length > 0) {
+      // Coupled: lay out both voices together so tab numbers share the notes' x positions,
+      // even though the notation stave is offset by its clef, key, and time signature.
       const beams = Beam.generateBeams(staveNotes.filter((n) => !n.isRest()));
-      Formatter.FormatAndDraw(context, stave, staveNotes);
+      const notevoice = new Voice("4/4").setMode(Voice.Mode.SOFT).addTickables(staveNotes);
+      const tabvoice = new Voice("4/4").setMode(Voice.Mode.SOFT).addTickables(tabNotes);
+      new Formatter()
+        .joinVoices([notevoice])
+        .joinVoices([tabvoice])
+        .formatToStave([notevoice, tabvoice], stave, { alignRests: false });
+      notevoice.draw(context, stave);
+      tabvoice.draw(context, tabStave);
       beams.forEach((b) => b.setContext(context).draw());
-    }
+      // Center each fret on the notation head so the numbers sit under the notes.
+      staveNotes.forEach((sn, i) => {
+        if (!tabNotes[i]) return;
+        tabNoteCenters.push(sn.getNoteHeadBeginX() + sn.getGlyphWidth() / 2);
+      });
+    } else {
+      if (stave && staveNotes.length > 0) {
+        const beams = Beam.generateBeams(staveNotes.filter((n) => !n.isRest()));
+        Formatter.FormatAndDraw(context, stave, staveNotes);
+        beams.forEach((b) => b.setContext(context).draw());
+      }
 
-    if (tabStave && tabNotes.length > 0) {
-      Formatter.FormatAndDraw(context, tabStave, tabNotes);
+      if (tabStave && tabNotes.length > 0) {
+        Formatter.FormatAndDraw(context, tabStave, tabNotes);
+        tabNotes.forEach((tn) => tabNoteCenters.push(tn.getAbsoluteX()));
+      }
     }
   }
 
@@ -308,11 +349,27 @@ export function renderVexflowScore(
     el.removeAttribute("style");
   });
 
-  // Draw end barlines
+  // Center each fret number on its note. VexFlow positions text using a regular-weight
+  // width, but the bold style renders wider, so the digits drift right. Anchoring at the
+  // middle on the note's x keeps them centered on the tab line.
+  wrapper.querySelectorAll('g[type="TabNote.text"]').forEach((group, i) => {
+    const center = tabNoteCenters[i];
+    if (center === undefined) return;
+    group.querySelectorAll("text").forEach((textEl) => {
+      textEl.setAttribute("text-anchor", "middle");
+      textEl.setAttribute("dominant-baseline", "central");
+      textEl.setAttribute("x", center.toString());
+    });
+  });
+
   return wrapper;
 }
 
-/** Applies a measure's left and right barlines to a stave */
+/**
+ * Applies a measure's left and right barlines to a stave.
+ * Right-edge end and repeat-end bars are drawn by drawRightEdgeBarline after
+ * the stave is drawn, so the thick bar lands exactly on the staff's right edge.
+ */
 function applyBarline(stave: Stave, measure: ScoreMeasure) {
   if (measure.startBarline === "repeat-begin") {
     stave.setBegBarType(Barline.type.REPEAT_BEGIN);
@@ -321,13 +378,44 @@ function applyBarline(stave: Stave, measure: ScoreMeasure) {
     case "double":
       stave.setEndBarType(Barline.type.DOUBLE);
       break;
-    case "end":
-      stave.setEndBarType(Barline.type.END);
-      break;
-    case "repeat-end":
-      stave.setEndBarType(Barline.type.REPEAT_END);
-      break;
   }
+}
+
+/** Draws the right-edge end or repeat-end barline flush with the end of the staff lines */
+function drawRightEdgeBarline(stave: Stave, measure: ScoreMeasure) {
+  if (measure.barline !== "end" && measure.barline !== "repeat-end") return;
+  const ctx = stave.getContext();
+  if (!ctx) return;
+
+  const top = stave.getTopLineTopY();
+  const bottom = stave.getBottomLineBottomY();
+  const height = bottom - top;
+  const right = stave.getX() + stave.getWidth();
+
+  // Thick bar is 4.5px (75% of the previous 6px), ending exactly at the staff's right edge
+  const thickWidth = 4.5;
+  const thickX = right - thickWidth;
+  ctx.fillRect(thickX, top, thickWidth, height);
+
+  if (measure.barline === "end") {
+    // Thin bar sits 3px to the left of the thick bar
+    ctx.fillRect(thickX - 3, top, 1, height);
+    return;
+  }
+
+  // Repeat-end: thin bar, then two dots, then thick bar, all flush to the right edge
+  const thinX = thickX - 3;
+  ctx.fillRect(thinX, top, 1, height);
+  const dotRadius = 2;
+  const dotX = thinX - 4 - dotRadius;
+  const spacing = stave.getSpacingBetweenLines();
+  const midY = top + height / 2;
+  ctx.beginPath();
+  ctx.arc(dotX, midY - spacing / 2, dotRadius, 0, Math.PI * 2, false);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(dotX, midY + spacing / 2, dotRadius, 0, Math.PI * 2, false);
+  ctx.fill();
 }
 
 /** Convert MIDI number to VexFlow key format (e.g. 60 -> { key: "c/4", acc: undefined }) */

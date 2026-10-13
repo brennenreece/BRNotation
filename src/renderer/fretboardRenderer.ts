@@ -195,36 +195,6 @@ export function renderFretboardScale(
   const stringSpacing = boardHeight / (numStrings - 1);
   const fretSpacing = boardWidth / (totalFrets - 1);
 
-  // Inlay marker dots (frets 3, 5, 7, 9, 12, 15, 17, 19, 21, 24)
-  const singleDots = [3, 5, 7, 9, 15, 17, 19, 21];
-  const doubleDots = [12, 24];
-
-  for (let f = minFret; f <= maxFret; f++) {
-    const x = padLeft + (f - minFret) * fretSpacing - fretSpacing / 2;
-    if (f > 0 && singleDots.includes(f)) {
-      const dot = document.createElementNS(svgNS, "circle");
-      dot.setAttribute("cx", `${x}`);
-      dot.setAttribute("cy", `${padTop + boardHeight / 2}`);
-      dot.setAttribute("r", "4.5");
-      dot.classList.add("br-fretboard-inlay");
-      svg.appendChild(dot);
-    } else if (f > 0 && doubleDots.includes(f)) {
-      const d1 = document.createElementNS(svgNS, "circle");
-      d1.setAttribute("cx", `${x}`);
-      d1.setAttribute("cy", `${padTop + boardHeight * 0.25}`);
-      d1.setAttribute("r", "4.5");
-      d1.classList.add("br-fretboard-inlay");
-      svg.appendChild(d1);
-
-      const d2 = document.createElementNS(svgNS, "circle");
-      d2.setAttribute("cx", `${x}`);
-      d2.setAttribute("cy", `${padTop + boardHeight * 0.75}`);
-      d2.setAttribute("r", "4.5");
-      d2.classList.add("br-fretboard-inlay");
-      svg.appendChild(d2);
-    }
-  }
-
   // Fret lines (vertical)
   for (let f = minFret; f <= maxFret; f++) {
     const x = padLeft + (f - minFret) * fretSpacing;
@@ -265,21 +235,14 @@ export function renderFretboardScale(
     sLine.setAttribute("y1", `${y}`);
     sLine.setAttribute("x2", `${padLeft + boardWidth}`);
     sLine.setAttribute("y2", `${y}`);
-    sLine.setAttribute("stroke-width", `${1 + s * 0.4}`); // thicker for lower strings
+    // Standard string numbering: string 1 is high E (top, 1.5px), low E (bottom) is 4px, evenly spaced between
+    const strNumber = numStrings - s;
+    const thinWidth = 1.5;
+    const thickWidth = 4;
+    const widthStep = numStrings > 1 ? (thickWidth - thinWidth) / (numStrings - 1) : 0;
+    sLine.setAttribute("stroke-width", `${thinWidth + (strNumber - 1) * widthStep}`);
     sLine.classList.add("br-fretboard-string");
     svg.appendChild(sLine);
-
-    // Tuning label on left
-    const openNote = tuning[s];
-    const match = openNote.match(/^([A-G][#b]?)/);
-    const label = match ? match[1] : openNote;
-    const tText = document.createElementNS(svgNS, "text");
-    tText.setAttribute("x", `${padLeft - 12}`);
-    tText.setAttribute("y", `${y + 4}`);
-    tText.setAttribute("text-anchor", "end");
-    tText.classList.add("br-fretboard-tuning-label");
-    tText.textContent = label;
-    svg.appendChild(tText);
   }
 
   // Scale calculations
@@ -296,6 +259,9 @@ export function renderFretboardScale(
       isRoot: idx === 0,
     };
   });
+
+  // Note circles are sized from the nearest-neighbor spacing so they nearly touch without overlapping
+  const dotRadius = Math.max(4, Math.min(stringSpacing, fretSpacing) / 2 - 1) * 0.8;
 
   // Plot note markers across frets and strings
   for (let s = 0; s < numStrings; s++) {
@@ -323,7 +289,7 @@ export function renderFretboardScale(
         const circle = document.createElementNS(svgNS, "circle");
         circle.setAttribute("cx", `${x}`);
         circle.setAttribute("cy", `${y}`);
-        circle.setAttribute("r", isRoot ? "8" : "7");
+        circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
         circle.classList.add(isRoot ? "br-fretboard-root-dot" : "br-fretboard-note-dot");
         g.appendChild(circle);
 
