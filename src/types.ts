@@ -50,6 +50,8 @@ export interface NotationScore {
   clef: ClefType;
   tuning: string[]; // e.g. ["E4", "B3", "G3", "D3", "A2", "E2"]
   measures: ScoreMeasure[];
+  /** "font" draws staff notation with SMuFL glyphs from the staff font; "vexflow" uses VexFlow's glyphs. */
+  render?: "vexflow" | "font";
 }
 
 export interface ChordGridCell {

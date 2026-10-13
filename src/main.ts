@@ -17,6 +17,7 @@ import { TUNING_PRESETS } from "./parser/scales";
 import { renderChordGrid } from "./renderer/chordGridRenderer";
 import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
+import { renderGlyphScore } from "./renderer/glyphRenderer";
 import { VexFlow } from "vexflow";
 import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordFont, loadBundledFonts, resolveFontFamily } from "./fonts/musicFonts";
 import { MetricsDefaults } from "vexflow";
@@ -204,6 +205,11 @@ export default class BRNotationPlugin extends Plugin {
         renderChordDiagram(body, { ...parsed.chordDiagram, dotStyle: parsed.chordDiagram.dotStyle ?? this.settings.diagramStyle });
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
         renderFretboardScale(body, { ...parsed.fretboardScale, dotStyle: parsed.fretboardScale.dotStyle ?? this.settings.diagramStyle });
+      } else if (parsed.notationScore?.render === "font") {
+        renderGlyphScore(body, parsed.notationScore, {
+          maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
+          fontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
+        });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,

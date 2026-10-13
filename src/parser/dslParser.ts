@@ -37,6 +37,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let showFunctions = false;
   let showMeasureNumbers = false;
   let gridKey: string | undefined = undefined;
+  let staffRender: "vexflow" | "font" = "vexflow";
 
   // Chord diagram fields
   let chordName = "Chord";
@@ -128,6 +129,15 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
     if (/^measure[\s-]*numbers?\s*[:=]?\s*(false|no|off)$/i.test(trimmed)) {
       showMeasureNumbers = false;
+      continue;
+    }
+    if (lower.startsWith("glyphs:")) {
+      const raw = trimmed.slice(7).trim().toLowerCase();
+      if (raw === "font" || raw === "vexflow") {
+        staffRender = raw;
+      } else {
+        errors.push(`Unknown glyphs "${raw}". Use font or vexflow.`);
+      }
       continue;
     }
     if (lower.startsWith("clef:")) {
@@ -230,6 +240,9 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   } else {
     // notation, tab, or coupled
     const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
+    if (notationScore && staffRender === "font" && mode === "notation") {
+      notationScore.render = "font";
+    }
     return { mode, rawText, notationScore, errors };
   }
 }
