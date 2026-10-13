@@ -82,9 +82,15 @@ export function applyChordFont(choice: string, baseSize: number): void {
   setChordFontStyle(resolveFontFamily(option.family), baseSize * option.scale, option.spacing, option.weight);
 }
 
-/** Replaces var(--font-sans) with Obsidian's UI font, so SVG attributes can use it. */
-function resolveFontFamily(family: string): string {
+/**
+ * Replaces CSS var(--name) references with their computed values, so SVG attributes
+ * (which don't resolve CSS variables) get real font names.
+ */
+export function resolveFontFamily(family: string): string {
   if (!family.includes("var(")) return family;
-  const uiFont = getComputedStyle(document.body).getPropertyValue("--font-sans").trim();
-  return family.replace(/var\(--font-sans\)/g, uiFont || "sans-serif");
+  const styles = getComputedStyle(document.body);
+  return family.replace(/var\((--[\w-]+)(?:,\s*([^)]*))?\)/g, (_m, name: string, fallback?: string) => {
+    const value = styles.getPropertyValue(name).trim();
+    return value || fallback?.trim() || "sans-serif";
+  });
 }

@@ -18,7 +18,7 @@ import { renderChordGrid } from "./renderer/chordGridRenderer";
 import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
 import { VexFlow } from "vexflow";
-import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordFont, loadBundledFonts } from "./fonts/musicFonts";
+import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordFont, loadBundledFonts, resolveFontFamily } from "./fonts/musicFonts";
 import { MetricsDefaults } from "vexflow";
 
 interface BRNotationPluginSettings {
@@ -210,7 +210,7 @@ export default class BRNotationPlugin extends Plugin {
           tabLineSpacing: this.settings.tabLineSpacing,
           staffFontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
           noteheadScale: STAFF_FONT_OPTIONS[this.settings.staffFont]?.noteheadScale ?? 1,
-          tabFontFamily: TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family,
+          tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
           tabFontSize: this.settings.tabFontSize,
         });
       }
