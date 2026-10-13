@@ -1,0 +1,52 @@
+/* BRNotation Plugin Styles */
+
+.br-notation-container {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-secondary);
+  margin: 1em 0;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.br-notation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background-color: var(--background-secondary-alt);
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.br-notation-title {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.br-notation-body {
+  padding: 10px 14px;
+  font-family: var(--font-monospace);
+  line-height: 1.5;
+  color: var(--text-normal);
+}
+
+.br-notation-line {
+  display: flex;
+  align-items: flex-start;
+  white-space: pre-wrap;
+}
+
+.br-notation-line-num {
+  user-select: none;
+  color: var(--text-faint);
+  margin-right: 12px;
+  min-width: 20px;
+  text-align: right;
+}
+
+.br-notation-content {
+  flex: 1;
+}
