@@ -1,7 +1,7 @@
 /**
  * Fretboard & Chord Diagram SVG Renderer
  */
-import { ChordDiagramData, DiagramDotStyle, DiagramNote, FretboardScaleData } from "../types";
+import { ChordDiagramData, DiagramColor, DiagramDotStyle, DiagramNote, FretboardScaleData } from "../types";
 import {
   NOTE_NAMES,
   noteToMidi,
@@ -27,9 +27,46 @@ function stringStrokeWidth(stringIndex: number, numStrings: number): number {
  * Dot style classes. A block `style:` sets the default, and a per-note `{style}` overrides it.
  * `classic` keeps the default look; the others change fill and stroke in styles.css.
  */
-function dotStyleClass(style: DiagramDotStyle | "root" | undefined, isRoot: boolean): string {
-  if (style === "root" || (!style && isRoot)) return "is-root";
-  return `style-${style ?? "classic"}`;
+function dotStyleClass(style: DiagramDotStyle | "root" | undefined, isRoot: boolean, color?: DiagramColor): string[] {
+  const classes: string[] = [];
+  if (style === "root" || (!style && isRoot)) classes.push("is-root");
+  else if (style === "numbered-role") classes.push("style-classic");
+  else classes.push(`style-${style ?? "classic"}`);
+  if (color) classes.push(`color-${color}`);
+  return classes;
+}
+
+/**
+ * Creates a dot shape at (x, y). Squares and diamonds are drawn as polygons so they
+ * share the same class names and CSS variables as circles.
+ */
+function createDot(
+  svgNS: string,
+  shape: "circle" | "square" | "diamond",
+  x: number,
+  y: number,
+  r: number
+): SVGElement {
+  if (shape === "circle") {
+    const c = document.createElementNS(svgNS, "circle") as SVGCircleElement;
+    c.setAttribute("cx", `${x}`);
+    c.setAttribute("cy", `${y}`);
+    c.setAttribute("r", `${r}`);
+    return c;
+  }
+  const p = document.createElementNS(svgNS, "polygon") as SVGPolygonElement;
+  const pts = shape === "square"
+    ? [[x - r, y - r], [x + r, y - r], [x + r, y + r], [x - r, y + r]]
+    : [[x, y - r * 1.25], [x + r * 1.25, y], [x, y + r * 1.25], [x - r * 1.25, y]];
+  p.setAttribute("points", pts.map(([px, py]) => `${px},${py}`).join(" "));
+  return p;
+}
+
+/** Shape used by a dot style. Only square and diamond change the shape. */
+function shapeFor(style: DiagramDotStyle | "root" | undefined): "circle" | "square" | "diamond" {
+  if (style === "square") return "square";
+  if (style === "diamond") return "diamond";
+  return "circle";
 }
 
 /** Render a vertical chord box diagram */
@@ -151,11 +188,8 @@ export function renderChordDiagram(
         // Same marker markup as fretboard notes, so both use one dot style
         const g = document.createElementNS(svgNS, "g");
         g.classList.add("br-diagram-marker", "is-note");
-        const dot = document.createElementNS(svgNS, "circle");
-        dot.setAttribute("cx", `${x}`);
-        dot.setAttribute("cy", `${y}`);
-        dot.setAttribute("r", `${dotRadiusFor(stringSpacing, fretSpacing)}`);
-        dot.classList.add("br-diagram-dot", "is-note", dotStyleClass(data.dotStyle, false));
+        const dot = createDot(svgNS, shapeFor(data.dotStyle), x, y, dotRadiusFor(stringSpacing, fretSpacing));
+        dot.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(data.dotStyle, false, data.dotColor));
         g.appendChild(dot);
 
         // Finger number if provided
@@ -308,11 +342,8 @@ export function renderFretboardScale(
           g.addEventListener("click", () => options.onNoteClick!(s, f));
         }
 
-        const circle = document.createElementNS(svgNS, "circle");
-        circle.setAttribute("cx", `${x}`);
-        circle.setAttribute("cy", `${y}`);
-        circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
-        circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note", dotStyleClass(data.dotStyle, isRoot));
+        const circle = createDot(svgNS, shapeFor(data.dotStyle), x, y, dotRadius + (isRoot ? 1 : 0));
+        circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note", ...dotStyleClass(data.dotStyle, isRoot, data.dotColor).filter((c) => c !== "is-root"));
         g.appendChild(circle);
 
         const text = document.createElementNS(svgNS, "text");
@@ -374,11 +405,10 @@ function renderCustomNotes(
       g.addEventListener("click", () => options.onNoteClick!(stringIndex, note.fret));
     }
 
-    const circle = document.createElementNS(svgNS, "circle");
-    circle.setAttribute("cx", `${x}`);
-    circle.setAttribute("cy", `${y}`);
-    circle.setAttribute("r", `${dotRadius + (isRoot ? 1 : 0)}`);
-    circle.classList.add("br-diagram-dot", "is-note", dotStyleClass(note.style ?? data.dotStyle, isRoot));
+    const noteStyle = note.style ?? data.dotStyle;
+    const color = note.color ?? data.dotColor;
+    const circle = createDot(svgNS, shapeFor(noteStyle), x, y, dotRadius + (isRoot ? 1 : 0));
+    circle.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(noteStyle, isRoot, color).filter((c) => c !== "is-root"));
     g.appendChild(circle);
 
     const text = document.createElementNS(svgNS, "text");

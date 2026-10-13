@@ -6,7 +6,9 @@ import {
   ChordDiagramData,
   ChordGridMeasure,
   ChordGridScore,
+  DIAGRAM_COLORS,
   DIAGRAM_DOT_STYLES,
+  DiagramColor,
   DiagramDotStyle,
   DiagramNote,
   DurationType,
@@ -49,6 +51,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let maxFret = 12;
   let displayMode: "degrees" | "notes" = "degrees";
   let dotStyle: DiagramDotStyle | undefined = undefined;
+  let dotColor: DiagramColor | undefined = undefined;
   let customNotes: DiagramNote[] | undefined = undefined;
 
   // Check directive headers
@@ -69,6 +72,15 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
         dotStyle = raw.toLowerCase() as DiagramDotStyle;
       } else {
         errors.push(`Unknown style "${raw}". Use ${DIAGRAM_DOT_STYLES.join(", ")}.`);
+      }
+      continue;
+    }
+    if (lower.startsWith("color:")) {
+      const raw = trimmed.slice(6).trim().toLowerCase();
+      if (DIAGRAM_COLORS.includes(raw as DiagramColor)) {
+        dotColor = raw as DiagramColor;
+      } else {
+        errors.push(`Unknown color "${raw}". Use ${DIAGRAM_COLORS.join(", ")}.`);
       }
       continue;
     }
@@ -198,6 +210,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       fingers: chordFingers,
       baseFret,
       dotStyle,
+      dotColor,
     };
     return { mode, rawText, chordDiagram, errors };
   } else if (mode === "fretboard") {
@@ -210,6 +223,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       maxFret,
       displayMode,
       dotStyle,
+      dotColor,
       customPositions: customNotes,
     };
     return { mode, rawText, fretboardScale, errors };
@@ -221,19 +235,23 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 }
 
 /**
- * Parses one `notes:` entry: `fret/string`, optionally followed by `{style}` and `=label`.
- * Examples: 5/6, 7/5{root}, 8/4{ghost}=b3
+ * Parses one `notes:` entry: `fret/string`, optionally followed by `{style}`, `{style,color}`,
+ * `{,color}`, and `=label`.
+ * Examples: 5/6, 7/5{root}, 8/4{ghost}=b3, 9/3{halo,red}=R
  */
 export function parseDiagramNote(token: string): DiagramNote | null {
-  const m = token.match(/^(\d+)\/(\d+)(?:\{(\w+)\})?(?:=(.+))?$/);
+  const m = token.match(/^(\d+)\/(\d+)(?:\{([\w-]*)(?:,(\w+))?\})?(?:=(.+))?$/);
   if (!m) return null;
-  const style = m[3]?.toLowerCase();
+  const style = m[3]?.toLowerCase() || undefined;
+  const color = m[4]?.toLowerCase();
   if (style && style !== "root" && !DIAGRAM_DOT_STYLES.includes(style as DiagramDotStyle)) return null;
+  if (color && !DIAGRAM_COLORS.includes(color as DiagramColor)) return null;
   return {
     fret: parseInt(m[1], 10),
     str: parseInt(m[2], 10),
     style: style as DiagramNote["style"],
-    label: m[4],
+    color: color as DiagramColor | undefined,
+    label: m[5],
   };
 }
 

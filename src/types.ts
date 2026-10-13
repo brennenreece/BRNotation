@@ -79,12 +79,42 @@ export interface ChordGridScore {
 }
 
 /** Dot style for diagram notes. `classic` marks the root filled and other notes outlined. */
-export type DiagramDotStyle = "classic" | "filled" | "outlined" | "ghost";
-export const DIAGRAM_DOT_STYLES: DiagramDotStyle[] = ["classic", "filled", "outlined", "ghost"];
+export type DiagramDotStyle =
+  | "classic"
+  | "filled"
+  | "outlined"
+  | "ghost"
+  | "accent-outline"
+  | "tone-ring"
+  | "muted"
+  | "square"
+  | "diamond"
+  | "halo"
+  | "numbered-role"
+  | "inverted";
+export const DIAGRAM_DOT_STYLES: DiagramDotStyle[] = [
+  "classic",
+  "filled",
+  "outlined",
+  "ghost",
+  "accent-outline",
+  "tone-ring",
+  "muted",
+  "square",
+  "diamond",
+  "halo",
+  "numbered-role",
+  "inverted",
+];
+
+/** Named colors for dots. They map to Obsidian theme variables in styles.css. */
+export type DiagramColor = "accent" | "red" | "green" | "blue" | "orange" | "purple" | "muted";
+export const DIAGRAM_COLORS: DiagramColor[] = ["accent", "red", "green", "blue", "orange", "purple", "muted"];
 
 export interface ChordDiagramData {
   name: string;
   dotStyle?: DiagramDotStyle;
+  dotColor?: DiagramColor;
   tuning?: string[]; // default ["E", "A", "D", "G", "B", "E"]
   frets: (number | "x")[]; // index 0 is lowest string (E2) or highest? We will standardize: 0 is lowest string (6th string)
   fingers?: (number | string | null)[];
@@ -103,6 +133,7 @@ export interface DiagramNote {
   label?: string;
   /** `root` forces the root dot style; other values override the block's dot style. */
   style?: DiagramDotStyle | "root";
+  color?: DiagramColor;
 }
 
 export interface FretboardScaleData {
@@ -114,6 +145,7 @@ export interface FretboardScaleData {
   maxFret: number; // default 12, 15, or 24
   displayMode: "degrees" | "notes";
   dotStyle?: DiagramDotStyle;
+  dotColor?: DiagramColor;
   /** Notes entered one by one with `notes:`. When set, these replace the scale's automatic dots. */
   customPositions?: DiagramNote[];
 }

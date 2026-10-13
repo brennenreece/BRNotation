@@ -78,7 +78,8 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `root:` | fretboard | Root note of the scale, such as `A` or `F#`. |
 | `scale:` | fretboard | Scale name from [Tunings and scales](#tunings-and-scales). |
 | `show:` | fretboard | `degrees` (default) or `notes`. |
-| `style:` | chord, fretboard | Dot style for the whole diagram: `classic`, `filled`, `outlined`, or `ghost`. See [Diagram styles](#diagram-styles). |
+| `style:` | chord, fretboard | Dot style for the whole diagram. See [Diagram styles](#diagram-styles). |
+| `color:` | chord, fretboard | Named colour for all dots: `accent`, `red`, `green`, `blue`, `orange`, `purple`, or `muted`. |
 | `notes:` | fretboard | Notes to draw, one by one, as `fret/string`. See [Entering notes one by one](#entering-notes-one-by-one). |
 
 ### Comments and titles
@@ -413,6 +414,16 @@ Chord boxes and fretboard maps share one dot style. Set it per block with `style
 | `filled` | All dots filled in the root colour. |
 | `outlined` | All dots outlined, with a light fill. |
 | `ghost` | Dashed outline, for optional or passing notes. |
+| `accent-outline` | Accent-coloured ring on a background-coloured dot. |
+| `tone-ring` | Thick outline, for emphasis without a fill. |
+| `muted` | Low-contrast dot, for background or avoid notes. |
+| `square` | Square dot instead of a circle. |
+| `diamond` | Diamond dot instead of a circle. |
+| `halo` | Soft wide glow around the dot, for highlighted notes. |
+| `numbered-role` | Dot looks like `classic`. Pair it with `display: degrees` to show scale degrees as labels. |
+| `inverted` | Dark dot with a light label. |
+
+Use `color:` to set one named colour for every dot in a block. Use `{style,color}` on a single note to set both for that note. Colours come from your Obsidian theme, so they change with it.
 
 ```brnotation
 type: fretboard
@@ -425,7 +436,8 @@ style: outlined
 
 Use `notes:` on a fretboard block to draw exactly the notes you list, in place of the scale. Each note is written as `fret/string`, using the same string numbers as tab (1 = high E). Each note may add two options directly after it:
 
-- `{style}` sets the dot style for that note only: `{root}`, `{classic}`, `{filled}`, `{outlined}`, or `{ghost}`.
+- `{style}` sets the dot style for that note only, such as `{root}`, `{square}`, or `{halo}`. Any style from the table above works.
+- `{style,color}` also sets a colour for that note. Leave the style empty to change only the colour: `{,red}`.
 - `=label` replaces the note name with your own text, such as `=R` or `=b3`.
 
 ```brnotation
@@ -434,7 +446,7 @@ title: A minor pentatonic, hand-placed
 root: A
 tuning: standard
 style: outlined
-notes: 5/6{root} 8/6 5/5 7/5=R 5/4{ghost}
+notes: 5/6{root} 8/6 5/5{square,red} 7/5=R 5/4{ghost}
 ```
 
 Notes can be listed in any order, and they can go anywhere on the neck. The `root:` setting still decides which dot is the root, so `{root}` is only needed to force a different dot style. Lines that fail to read appear as errors under the block.

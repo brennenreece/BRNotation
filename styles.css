@@ -289,6 +289,56 @@
   stroke-dasharray: 3 2;
 }
 
+/* Extra dot styles. Each uses the shared diagram variables so theme changes apply. */
+.br-diagram-dot.style-accent-outline {
+  fill: var(--background-primary);
+  stroke: var(--interactive-accent);
+  stroke-width: 2.5;
+}
+
+.br-diagram-dot.style-tone-ring {
+  fill: var(--br-diagram-note-fill);
+  stroke: var(--text-normal);
+  stroke-width: 4;
+}
+
+.br-diagram-dot.style-muted {
+  fill: var(--background-modifier-border);
+  stroke: var(--text-faint);
+}
+
+.br-diagram-dot.style-square,
+.br-diagram-dot.style-diamond {
+  fill: var(--br-diagram-note-fill);
+  stroke: var(--br-diagram-note-stroke);
+}
+
+.br-diagram-dot.style-halo {
+  fill: var(--br-diagram-root-fill);
+  fill-opacity: 1;
+  stroke: var(--br-diagram-root-fill);
+  stroke-opacity: 0.35;
+  stroke-width: 6;
+}
+
+.br-diagram-dot.style-inverted {
+  fill: var(--text-normal);
+  stroke: var(--text-normal);
+}
+
+.br-diagram-marker:has(.style-inverted) .br-diagram-label {
+  fill: var(--background-primary);
+}
+
+/* Named colors. These override the fill and stroke of any style above. */
+.br-diagram-dot.color-accent { fill: var(--interactive-accent); stroke: var(--interactive-accent); }
+.br-diagram-dot.color-red { fill: var(--color-red); stroke: var(--color-red); }
+.br-diagram-dot.color-green { fill: var(--color-green); stroke: var(--color-green); }
+.br-diagram-dot.color-blue { fill: var(--color-blue); stroke: var(--color-blue); }
+.br-diagram-dot.color-orange { fill: var(--color-orange); stroke: var(--color-orange); }
+.br-diagram-dot.color-purple { fill: var(--color-purple); stroke: var(--color-purple); }
+.br-diagram-dot.color-muted { fill: var(--text-muted); stroke: var(--text-muted); }
+
 .br-diagram-label {
   font-size: var(--br-diagram-label-size);
   font-weight: 700;

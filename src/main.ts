@@ -326,6 +326,14 @@ class BRNotationSettingTab extends PluginSettingTab {
         dd.addOption("filled", "Filled");
         dd.addOption("outlined", "Outlined");
         dd.addOption("ghost", "Ghost (dashed)");
+        dd.addOption("accent-outline", "Accent outline");
+        dd.addOption("tone-ring", "Tone ring (thick outline)");
+        dd.addOption("muted", "Muted (low contrast)");
+        dd.addOption("square", "Square");
+        dd.addOption("diamond", "Diamond");
+        dd.addOption("halo", "Halo (highlighted)");
+        dd.addOption("numbered-role", "Numbered role (degree labels)");
+        dd.addOption("inverted", "Inverted (dark dot, light label)");
         dd.setValue(this.plugin.settings.diagramStyle).onChange(async (val) => {
           this.plugin.settings.diagramStyle = val as DiagramDotStyle;
           await this.plugin.saveSettings();
