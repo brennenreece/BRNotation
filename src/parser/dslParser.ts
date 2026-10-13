@@ -237,7 +237,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 /**
  * Parses one `notes:` entry: `fret/string`, optionally followed by `{style}`, `{style,color}`,
  * `{,color}`, and `=label`.
- * Examples: 5/6, 7/5{root}, 8/4{ghost}=b3, 9/3{halo,red}=R
+ * Examples: 5/6, 7/5{root}, 8/4{ghost}=b3, 9/3{square,red}=R
  */
 export function parseDiagramNote(token: string): DiagramNote | null {
   const m = token.match(/^(\d+)\/(\d+)(?:\{([\w-]*)(?:,(\w+))?\})?(?:=(.+))?$/);

@@ -413,17 +413,16 @@ Chord boxes and fretboard maps share one dot style. Set it per block with `style
 | `classic` | Root filled in the accent colour, other notes outlined. This is the default. |
 | `filled` | All dots filled in the root colour. |
 | `outlined` | All dots outlined, with a light fill. |
-| `ghost` | Dashed outline, for optional or passing notes. |
+| `ghost` | White fill with a dashed outline, for optional or passing notes. |
 | `accent-outline` | Accent-coloured ring on a background-coloured dot. |
 | `tone-ring` | Thick outline, for emphasis without a fill. |
 | `muted` | Low-contrast dot, for background or avoid notes. |
 | `square` | Square dot instead of a circle. |
 | `diamond` | Diamond dot instead of a circle. |
-| `halo` | Soft wide glow around the dot, for highlighted notes. |
 | `numbered-role` | Dot looks like `classic`. Pair it with `display: degrees` to show scale degrees as labels. |
-| `inverted` | Dark dot with a light label. |
+| `inverted` | Dark dot with a white label. |
 
-Use `color:` to set one named colour for every dot in a block. Use `{style,color}` on a single note to set both for that note. Colours come from your Obsidian theme, so they change with it.
+Use `color:` to set one named colour for every dot in a block. Use `{style,color}` on a single note to set both for that note. Colours come from your Obsidian theme, so they change with it. Solid dots (`filled`, `inverted`, and any named colour) get white labels.
 
 ```brnotation
 type: fretboard
@@ -436,7 +435,7 @@ style: outlined
 
 Use `notes:` on a fretboard block to draw exactly the notes you list, in place of the scale. Each note is written as `fret/string`, using the same string numbers as tab (1 = high E). Each note may add two options directly after it:
 
-- `{style}` sets the dot style for that note only, such as `{root}`, `{square}`, or `{halo}`. Any style from the table above works.
+- `{style}` sets the dot style for that note only, such as `{root}`, `{square}`, or `{diamond}`. Any style from the table above works.
 - `{style,color}` also sets a colour for that note. Leave the style empty to change only the colour: `{,red}`.
 - `=label` replaces the note name with your own text, such as `=R` or `=b3`.
 

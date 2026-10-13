@@ -331,7 +331,6 @@ class BRNotationSettingTab extends PluginSettingTab {
         dd.addOption("muted", "Muted (low contrast)");
         dd.addOption("square", "Square");
         dd.addOption("diamond", "Diamond");
-        dd.addOption("halo", "Halo (highlighted)");
         dd.addOption("numbered-role", "Numbered role (degree labels)");
         dd.addOption("inverted", "Inverted (dark dot, light label)");
         dd.setValue(this.plugin.settings.diagramStyle).onChange(async (val) => {

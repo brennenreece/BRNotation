@@ -89,7 +89,6 @@ export type DiagramDotStyle =
   | "muted"
   | "square"
   | "diamond"
-  | "halo"
   | "numbered-role"
   | "inverted";
 export const DIAGRAM_DOT_STYLES: DiagramDotStyle[] = [
@@ -102,7 +101,6 @@ export const DIAGRAM_DOT_STYLES: DiagramDotStyle[] = [
   "muted",
   "square",
   "diamond",
-  "halo",
   "numbered-role",
   "inverted",
 ];

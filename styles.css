@@ -284,7 +284,7 @@
 }
 
 .br-diagram-dot.style-ghost {
-  fill: none;
+  fill: var(--background-primary);
   stroke: var(--br-diagram-note-stroke);
   stroke-dasharray: 3 2;
 }
@@ -313,21 +313,21 @@
   stroke: var(--br-diagram-note-stroke);
 }
 
-.br-diagram-dot.style-halo {
-  fill: var(--br-diagram-root-fill);
-  fill-opacity: 1;
-  stroke: var(--br-diagram-root-fill);
-  stroke-opacity: 0.35;
-  stroke-width: 6;
-}
-
 .br-diagram-dot.style-inverted {
   fill: var(--text-normal);
   stroke: var(--text-normal);
 }
 
-.br-diagram-marker:has(.style-inverted) .br-diagram-label {
-  fill: var(--background-primary);
+/* Solid dots need a white label to stay readable. */
+.br-diagram-marker.br-diagram-marker:has(.style-inverted) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-accent) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-red) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-green) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-blue) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-orange) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-purple) .br-diagram-label,
+.br-diagram-marker.br-diagram-marker:has(.color-muted) .br-diagram-label.br-diagram-label {
+  fill: #ffffff;
 }
 
 /* Named colors. These override the fill and stroke of any style above. */
