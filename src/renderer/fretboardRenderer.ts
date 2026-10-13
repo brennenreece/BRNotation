@@ -11,6 +11,18 @@ import {
 } from "../parser/scales";
 import { formatChordHtml } from "../parser/chordParser";
 
+/** Shared sizing so chord boxes and fretboard maps draw dots and strings the same way. */
+function dotRadiusFor(stringSpacing: number, fretSpacing: number): number {
+  return Math.max(4, Math.min(stringSpacing, fretSpacing) / 2 - 1) * 0.8;
+}
+
+/** Strings taper from thick (low E) to thin (high E). `stringIndex` 0 is the low E string. */
+function stringStrokeWidth(stringIndex: number, numStrings: number): number {
+  const thin = 1.2;
+  const thick = 2.6;
+  return numStrings > 1 ? thick - (stringIndex / (numStrings - 1)) * (thick - thin) : thick;
+}
+
 /** Render a vertical chord box diagram */
 export function renderChordDiagram(
   containerEl: HTMLElement,
@@ -37,7 +49,7 @@ export function renderChordDiagram(
   // Title / Chord Name
   const title = document.createElementNS(svgNS, "text");
   title.setAttribute("x", `${width / 2}`);
-  title.setAttribute("y", "24");
+  title.setAttribute("y", "22");
   title.setAttribute("text-anchor", "middle");
   title.classList.add("br-diagram-title");
   title.textContent = data.name;
@@ -46,7 +58,7 @@ export function renderChordDiagram(
   // Diagram boundaries
   const padLeft = 35;
   const padRight = 35;
-  const padTop = 50;
+  const padTop = 56;
   const padBottom = 25;
 
   const gridWidth = width - padLeft - padRight;
@@ -94,6 +106,7 @@ export function renderChordDiagram(
     sLine.setAttribute("y1", `${padTop}`);
     sLine.setAttribute("x2", `${x}`);
     sLine.setAttribute("y2", `${padTop + gridHeight}`);
+    sLine.setAttribute("stroke-width", `${stringStrokeWidth(s, numStrings)}`);
     sLine.classList.add("br-diagram-string");
     svg.appendChild(sLine);
   }
@@ -117,7 +130,7 @@ export function renderChordDiagram(
       // Open string 'O'
       const oCircle = document.createElementNS(svgNS, "circle");
       oCircle.setAttribute("cx", `${x}`);
-      oCircle.setAttribute("cy", `${padTop - 10}`);
+      oCircle.setAttribute("cy", `${padTop - 12}`);
       oCircle.setAttribute("r", "4.5");
       oCircle.classList.add("br-diagram-open");
       svg.appendChild(oCircle);
@@ -126,24 +139,28 @@ export function renderChordDiagram(
       const relativeFret = fretVal - (baseFret - 1);
       if (relativeFret >= 1 && relativeFret <= numFrets) {
         const y = padTop + (relativeFret - 0.5) * fretSpacing;
+        // Same marker markup as fretboard notes, so both use one dot style
+        const g = document.createElementNS(svgNS, "g");
+        g.classList.add("br-diagram-marker", "is-note");
         const dot = document.createElementNS(svgNS, "circle");
         dot.setAttribute("cx", `${x}`);
         dot.setAttribute("cy", `${y}`);
-        dot.setAttribute("r", "7");
-        dot.classList.add("br-diagram-dot");
-        svg.appendChild(dot);
+        dot.setAttribute("r", `${dotRadiusFor(stringSpacing, fretSpacing)}`);
+        dot.classList.add("br-diagram-dot", "is-note");
+        g.appendChild(dot);
 
         // Finger number if provided
         const finger = data.fingers ? data.fingers[s] : null;
         if (finger && finger !== "-") {
           const fText = document.createElementNS(svgNS, "text");
           fText.setAttribute("x", `${x}`);
-          fText.setAttribute("y", `${y + 3.5}`);
+          fText.setAttribute("y", `${y + 3}`);
           fText.setAttribute("text-anchor", "middle");
           fText.classList.add("br-diagram-label");
           fText.textContent = `${finger}`;
-          svg.appendChild(fText);
+          g.appendChild(fText);
         }
+        svg.appendChild(g);
       }
     }
   }
@@ -173,7 +190,7 @@ export function renderFretboardScale(
   const totalFrets = maxFret - minFret + 1;
 
   const containerWidth = options.width || Math.max(containerEl.clientWidth || 750, 600);
-  const height = options.height || 180;
+  const height = options.height || 190;
 
   const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(svgNS, "svg");
@@ -185,7 +202,7 @@ export function renderFretboardScale(
   const padLeft = 45;
   const padRight = 20;
   const padTop = 30;
-  const padBottom = 25;
+  const padBottom = 36;
 
   const boardWidth = containerWidth - padLeft - padRight;
   const boardHeight = height - padTop - padBottom;
@@ -212,7 +229,7 @@ export function renderFretboardScale(
     if (f > 0) {
       const numText = document.createElementNS(svgNS, "text");
       numText.setAttribute("x", `${x - fretSpacing / 2}`);
-      numText.setAttribute("y", `${padTop + boardHeight + 16}`);
+      numText.setAttribute("y", `${padTop + boardHeight + 24}`);
       numText.setAttribute("text-anchor", "middle");
       numText.classList.add("br-diagram-aux");
       numText.textContent = `${f}`;
@@ -231,12 +248,7 @@ export function renderFretboardScale(
     sLine.setAttribute("y1", `${y}`);
     sLine.setAttribute("x2", `${padLeft + boardWidth}`);
     sLine.setAttribute("y2", `${y}`);
-    // Standard string numbering: string 1 is high E (top, 1.5px), low E (bottom) is 4px, evenly spaced between
-    const strNumber = numStrings - s;
-    const thinWidth = 1.5;
-    const thickWidth = 4;
-    const widthStep = numStrings > 1 ? (thickWidth - thinWidth) / (numStrings - 1) : 0;
-    sLine.setAttribute("stroke-width", `${thinWidth + (strNumber - 1) * widthStep}`);
+    sLine.setAttribute("stroke-width", `${stringStrokeWidth(s, numStrings)}`);
     sLine.classList.add("br-diagram-string");
     svg.appendChild(sLine);
   }
@@ -256,8 +268,7 @@ export function renderFretboardScale(
     };
   });
 
-  // Note circles are sized from the nearest-neighbor spacing so they nearly touch without overlapping
-  const dotRadius = Math.max(4, Math.min(stringSpacing, fretSpacing) / 2 - 1) * 0.8;
+  const dotRadius = dotRadiusFor(stringSpacing, fretSpacing);
 
   // Plot note markers across frets and strings
   for (let s = 0; s < numStrings; s++) {
@@ -271,7 +282,7 @@ export function renderFretboardScale(
 
       if (scaleDegreeMap[pc]) {
         const { degree, isRoot } = scaleDegreeMap[pc];
-        const x = f === 0 ? padLeft - 6 : padLeft + (f - minFret) * fretSpacing - fretSpacing / 2;
+        const x = f === 0 ? padLeft - dotRadius - 4 : padLeft + (f - minFret) * fretSpacing - fretSpacing / 2;
 
         const g = document.createElementNS(svgNS, "g");
         g.classList.add("br-diagram-marker");
