@@ -165,7 +165,7 @@ export function renderGlyphScore(
   const noteEndInset = NOTE_END_INSET * spacing;
   // SMuFL glyphs are drawn so that one staff space is 0.25 em. Staff lines are 4 spaces apart.
   const glyphSize = lineSpacing * 4 * scale;
-  const systemStarts = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
+  const { starts: systemStarts, widths: measureWidths } = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
   const totalLines = systemStarts.length;
   const totalHeight = totalLines * (blockHeight + 20) + 20;
 
@@ -187,24 +187,13 @@ export function renderGlyphScore(
     const lineStart = systemStarts[lineIndex];
     const lineEnd = lineIndex + 1 < systemStarts.length ? systemStarts[lineIndex + 1] : score.measures.length;
     const measureInLine = mIdx - lineStart;
-    const countOnLine = lineEnd - lineStart;
-    // Each system's first measure opens with the header (clef, key, time signature). Its box
-    // includes that header, so the bars after it are spaced evenly over the remaining length
-    // and the notes of every measure get the same usable width.
+    // Each measure is sized by its content (see breakSystems). The first measure of a system
+    // carries the header (clef, key, time signature) in its box, so later boxes start after it.
     const lineFirst = score.measures[lineStart];
-    const sysHeader = isTabOnly
-      ? 0
-      : headerWidth(
-          lineFirst.clef || clef,
-          lineFirst.keySignature || score.keySignature,
-          lineFirst.timeSignature || score.timeSignature,
-          glyphSize
-        ) + noteGap;
-    const measureWidth = Math.floor((containerWidth - sysHeader) / countOnLine);
-    const xPos = measureInLine === 0 ? 0 : sysHeader + (measureInLine - 1) * measureWidth;
-    const isLastOnLine = measureInLine === countOnLine - 1;
-    const boxWidth = measureInLine === 0 ? sysHeader + measureWidth : measureWidth;
-    const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : boxWidth;
+    let xPos = 0;
+    for (let k = lineStart; k < mIdx; k++) xPos += measureWidths[k];
+    const isLastOnLine = mIdx === lineEnd - 1;
+    const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidths[mIdx];
     const y0 = 20 + lineIndex * (blockHeight + 20);
 
     if (isTabOnly) {
@@ -396,9 +385,19 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
 }
 
 /**
- * Index of the first measure of each system. A system takes as many measures as fit at their
- * minimum widths, capped by the `maxPerLine` setting, so measures wrap rather than squeeze.
- * Every system holds at least one measure.
+ * Natural width of one measure: the room its notes need at their minimum gaps, plus the end
+ * inset and the gap before the barline. Measures are sized from this, so a dense bar gets
+ * more width than a sparse one instead of an equal share of the line.
+ */
+function measureNaturalWidth(gaps: number[], noteEndInset: number, noteGap: number): number {
+  return gaps.reduce((a, b) => a + b, 0) + noteEndInset + noteGap;
+}
+
+/**
+ * Breaks the score into systems and sizes each measure within its system. A system takes as
+ * many measures as fit at their natural widths, capped by `maxPerLine`. The spare width is
+ * shared out in proportion to each measure's natural width, so a line is justified without
+ * crowding its dense bars.
  */
 function breakSystems(
   score: NotationScore,
@@ -412,8 +411,13 @@ function breakSystems(
   tabSize: number,
   headScale: number,
   isCoupled: boolean
-): number[] {
+): { starts: number[]; widths: number[] } {
   const starts: number[] = [];
+  const widths: number[] = new Array(score.measures.length).fill(0);
+  const natural = score.measures.map((m) => {
+    const gaps = isTabOnly ? tabOnlyMinGaps(m, score.tuning, tabSize) : measureMinGaps(m, score.tuning, tabSize, isCoupled, headScale, glyphSize);
+    return measureNaturalWidth(gaps, noteEndInset, noteGap);
+  });
   let i = 0;
   while (i < score.measures.length) {
     starts.push(i);
@@ -422,18 +426,24 @@ function breakSystems(
       ? 0
       : headerWidth(first.clef || clef, first.keySignature || score.keySignature, first.timeSignature || score.timeSignature, glyphSize) + noteGap;
     let used = header;
+    const lineStart = i;
     let count = 0;
     while (i < score.measures.length && count < maxPerLine) {
-      const m = score.measures[i];
-      const gaps = isTabOnly ? tabOnlyMinGaps(m, score.tuning, tabSize) : measureMinGaps(m, score.tuning, tabSize, isCoupled, headScale, glyphSize);
-      const need = gaps.reduce((a, b) => a + b, 0) + noteEndInset + noteGap;
-      if (count > 0 && used + need > containerWidth) break;
-      used += need;
+      if (count > 0 && used + natural[i] > containerWidth) break;
+      used += natural[i];
       count++;
       i++;
     }
+    // Spread the spare width over the line's measures in proportion to their natural widths.
+    // The header sits in the first measure's box, so it is added there and not in the sum.
+    const naturalSum = used - header;
+    const spare = Math.max(0, containerWidth - used);
+    for (let k = lineStart; k < i; k++) {
+      widths[k] = natural[k] + (naturalSum > 0 ? (spare * natural[k]) / naturalSum : 0);
+    }
+    widths[lineStart] += header;
   }
-  return starts;
+  return { starts, widths };
 }
 
 /** Vertical lines and repeat dots, drawn with the same geometry as the VexFlow staff. */
