@@ -51,7 +51,8 @@ export function setChordFontStyle(family: string, size: number, spacing: number,
   document.querySelectorAll<SVGElement>(".br-chordgrid-chord-text").forEach((el) => applyChordTextStyle(el));
 }
 
-function applyChordTextStyle(el: Element) {
+/** Applies the configured chord font to an SVG text element. */
+export function applyChordTextStyle(el: Element) {
   el.setAttribute("font-family", chordFontFamily);
   el.setAttribute("font-size", `${chordFontSize}px`);
   el.setAttribute("letter-spacing", `${chordFontSpacing}`);

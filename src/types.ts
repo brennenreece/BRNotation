@@ -28,6 +28,8 @@ export interface ScoreNote {
   pitches?: NotePitch[]; // for standard notation
   tabPositions?: TabPosition[]; // for tablature
   chordSymbol?: string;
+  lyric?: string; // syllable under this note (ABC `w:` line)
+  lyricHold?: boolean; // `_` in a lyric line: continues the previous syllable
   articulations?: ("staccato" | "accent" | "tenuto" | "fermata")[];
 }
 

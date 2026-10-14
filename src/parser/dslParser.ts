@@ -57,6 +57,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 
   // Check directive headers
   const contentLines: string[] = [];
+  const lyricLines: string[] = [];
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("# ")) {
@@ -192,6 +193,12 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       continue;
     }
 
+    // ABC-style lyric line (`w:`) attaches to the notation above it
+    if (lower.startsWith("w:")) {
+      lyricLines.push(trimmed.slice(2).trim());
+      continue;
+    }
+
     contentLines.push(trimmed);
   }
 
@@ -239,7 +246,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     return { mode, rawText, fretboardScale, errors };
   } else {
     // notation, tab, or coupled
-    const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
+    const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors, lyricLines);
     if (notationScore) {
       // Tab-only blocks have no staff, so they always use the font renderer's tab drawing.
       notationScore.render = mode === "tab" ? "font" : staffRender;
@@ -341,7 +348,8 @@ function parseNotationContent(
   keySignature: string,
   clef: any,
   tuning: string[],
-  errors: string[] = []
+  errors: string[] = [],
+  lyricLines: string[] = []
 ): NotationScore {
   const measures: ScoreMeasure[] = [];
   let currentMeasureNumber = 1;
@@ -358,6 +366,9 @@ function parseNotationContent(
   let pendingSystemBreak = false;
   let segment = "";
   let stickyDuration: DurationType = "q";
+  // A chord symbol ("Am7") labels the next note or rest, wherever it appears in the bar.
+  // It is carried forward across barlines until a note takes it, so it never occupies a beat.
+  let pendingChord: string | undefined;
   const flush = (closingBar: ClosingBarline) => {
     const trimmed = segment.trim();
     segment = "";
@@ -368,9 +379,18 @@ function parseNotationContent(
         stickyDuration = dirMatch[1].toLowerCase() as DurationType;
         continue;
       }
+      if (token.startsWith('"') && token.endsWith('"')) {
+        pendingChord = token.slice(1, -1);
+        continue;
+      }
       const scoreNote = parseNoteToken(token, mode, stickyDuration);
-      if (scoreNote) notes.push(scoreNote);
-      else errors.push(`Could not read "${token}" in measure ${currentMeasureNumber}`);
+      if (scoreNote) {
+        if (pendingChord !== undefined) {
+          scoreNote.chordSymbol = pendingChord;
+          pendingChord = undefined;
+        }
+        notes.push(scoreNote);
+      } else errors.push(`Could not read "${token}" in measure ${currentMeasureNumber}`);
     }
     if (notes.length > 0) {
       measures.push({
@@ -400,6 +420,29 @@ function parseNotationContent(
     }
   }
   flush("single");
+  if (pendingChord !== undefined) errors.push(`Chord symbol "${pendingChord}" has no note or rest after it`);
+
+  // Lyrics: each whitespace-separated syllable maps to one note in order, ABC-style.
+  // "-" splits a word across notes, "_" holds the previous syllable (melisma), "*" skips a note.
+  if (lyricLines.length) {
+    const syllables = lyricLines.join(" ").split(/\s+/).filter(Boolean);
+    const allNotes = measures.flatMap((m) => m.notes);
+    let noteIdx = 0;
+    for (const syl of syllables) {
+      if (noteIdx >= allNotes.length) {
+        errors.push(`Lyric "${syl}" has no note to attach to`);
+        break;
+      }
+      const note = allNotes[noteIdx++];
+      // `_` on its own holds the previous syllable; `*` skips this note.
+      if (syl === "*") continue;
+      if (syl === "_") {
+        note.lyricHold = true;
+        continue;
+      }
+      note.lyric = syl;
+    }
+  }
 
   // If no measures parsed, provide a default empty measure
   if (measures.length === 0) {

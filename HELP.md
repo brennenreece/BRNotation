@@ -170,7 +170,7 @@ The first chord uses frets 5, 5, 3 on strings 3, 2, 1. Chords without positions 
 
 ### Chord symbols above the staff
 
-Put a chord name in double quotes:
+Put a chord name in double quotes. The symbol sits above the next note or rest, so it can appear before any note in a bar, not just the first. A chord symbol takes no beat of its own:
 
 ```brnotation
 mode: notation
@@ -179,6 +179,46 @@ key: G
 
 | "G" g4/q b4/q d5/q g5/q | "C" c4/h e4/h |
 ```
+
+```brnotation
+mode: notation
+time: 4/4
+key: C
+
+| c4/q "Am7" d4/q e4/q "G7alt" f4/q | g4/h "Cm7b5" r/q |
+```
+
+Chord names are shown exactly as you type them, so any jazz quality works, for example `Cmaj7`, `Dm7`, `G7`, `C7alt`, `Cm7b5`, `C7#9`, `G7sus4`, or `C/E`. In `coupled` blocks the chord symbol sits above the notation staff, not the tab. A chord symbol with no note or rest after it is reported as an error.
+
+### Lyrics
+
+Add a `w:` line directly under a notation line to set words under the notes, the same way as ABC notation. Each whitespace-separated syllable goes under one note, in order:
+
+| Syntax | Meaning |
+|--------|---------|
+| `Ma-` | A syllable. A trailing `-` joins it to the next syllable of the same word. |
+| `_` | Melisma: the previous syllable continues over this note, drawn as a line. |
+| `*` | Skip: this note gets no text. |
+
+```brnotation
+mode: notation
+time: 4/4
+key: C
+
+| c4/q d4/q e4/q f4/q | g4/q a4/q b4/q c5/q |
+w: Ma- ry had a lit- tle lamb
+```
+
+```brnotation
+mode: notation
+time: 4/4
+key: C
+
+| c4/q d4/q e4/q f4/q | g4/h c5/h |
+w: Hal- le- lu _ jah
+```
+
+Lyrics also work in `coupled` blocks, under the notation staff. A `w:` line that has more syllables than the block has notes is reported as an error.
 
 ### Multiple measures per line
 

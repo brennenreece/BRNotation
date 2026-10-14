@@ -5,6 +5,7 @@
  * still use VexFlow.
  */
 import { NotationScore, ScoreMeasure, ScoreNote, NotePitch } from "../types";
+import { applyChordTextStyle } from "./chordGridRenderer";
 import { midiToStringFret, noteToMidi } from "../parser/scales";
 
 export interface GlyphRenderOptions {
@@ -156,7 +157,12 @@ export function renderGlyphScore(
   // Gap between the staff and its tab row in coupled blocks.
   const COUPLED_STAFF_TAB_GAP = 60;
   const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
-  const blockHeight = isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight;
+  // Chord symbols sit above the staff and lyrics below it. Room is only reserved when the score uses them.
+  const hasChords = score.measures.some((m) => m.notes.some((n) => n.chordSymbol));
+  const hasLyrics = score.measures.some((m) => m.notes.some((n) => n.lyric || n.lyricHold));
+  const chordRoom = hasChords && !isTabOnly ? CHORD_ROOM * scale : 0;
+  const lyricRoom = hasLyrics && !isTabOnly ? LYRIC_ROOM * scale : 0;
+  const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight) + chordRoom + lyricRoom;
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
   const headScale = options.noteheadScale ?? 1;
@@ -168,6 +174,8 @@ export function renderGlyphScore(
   const { starts: systemStarts, widths: measureWidths } = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
   const totalLines = systemStarts.length;
   const totalHeight = totalLines * (blockHeight + 20) + 20;
+  // Y of the top staff line in each system, below the chord-symbol room.
+  const staffTop = (lineIndex: number) => 20 + lineIndex * (blockHeight + 20) + chordRoom;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -194,7 +202,7 @@ export function renderGlyphScore(
     for (let k = lineStart; k < mIdx; k++) xPos += measureWidths[k];
     const isLastOnLine = mIdx === lineEnd - 1;
     const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidths[mIdx];
-    const y0 = 20 + lineIndex * (blockHeight + 20);
+    const y0 = staffTop(lineIndex);
 
     if (isTabOnly) {
       const tabNoteStart = xPos + noteGap;
@@ -255,7 +263,9 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize));
+    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize));
+    // Chord symbols sit above the staff. Lyrics sit below the notation staff (in coupled blocks, above the tab).
+    drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom);
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -579,6 +589,14 @@ function clefWidth(clef: string, size: number): number {
  * Gap between the header (clef, key, time signature) and the first note, and the inset of
  * every measure's notes from its left barline. VexFlow's Stave.padding is 12 px.
  */
+/** Vertical room (px at scale 1) for chord symbols above the staff and lyrics below it. */
+const CHORD_ROOM = 26;
+const LYRIC_ROOM = 26;
+/** Baseline offsets (px at scale 1) of chord symbols above the top line and lyrics below the bottom line. */
+const CHORD_BASELINE_GAP = 8;
+const LYRIC_BASELINE_GAP = 16;
+const LYRIC_FONT_SIZE = 13;
+
 const NOTE_GAP = 12;
 /** Space kept before each measure's right barline. VexFlow reserves 22 px (12 + 10). */
 const NOTE_END_INSET = 22;
@@ -759,9 +777,9 @@ function layoutMeasureNotes(
   timeSig: string,
   headScale: number,
   minGaps?: number[]
-): void {
+): number[] {
   const notes = measure.notes;
-  if (!notes.length) return;
+  if (!notes.length) return [];
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
   const middleY = bottomY - 2 * lineSpacing;
@@ -797,6 +815,49 @@ function layoutMeasureNotes(
   for (const g of groups) {
     drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing, headScale);
   }
+  return xs;
+}
+
+/** Chord symbols above the staff, and lyric syllables below it, one per note. */
+function drawNoteTexts(
+  svg: SVGElement,
+  notes: ScoreNote[],
+  xs: number[],
+  y0: number,
+  lineSpacing: number,
+  family: string,
+  scale: number,
+  chordRoom: number,
+  lyricRoom: number
+): void {
+  const staffBottom = y0 + 4 * lineSpacing;
+  const lyricSize = LYRIC_FONT_SIZE * scale;
+  notes.forEach((note, i) => {
+    if (note.chordSymbol && chordRoom) {
+      const t = el("text", { x: xs[i], y: y0 - CHORD_BASELINE_GAP * scale, "text-anchor": "middle" });
+      applyChordTextStyle(t);
+      t.textContent = note.chordSymbol;
+      svg.appendChild(t);
+    }
+    if (!lyricRoom) return;
+    if (note.lyric) {
+      const t = el("text", {
+        x: xs[i],
+        y: staffBottom + LYRIC_BASELINE_GAP * scale,
+        "text-anchor": "middle",
+        "font-family": family,
+        "font-size": lyricSize,
+      });
+      t.textContent = note.lyric;
+      svg.appendChild(t);
+    }
+    if (note.lyricHold) {
+      // Melisma: a line that runs from this note toward the next syllable.
+      const nextX = i + 1 < xs.length ? xs[i + 1] : xs[i] + lyricSize;
+      const yy = staffBottom + LYRIC_BASELINE_GAP * scale - lyricSize * 0.3;
+      svg.appendChild(el("line", { x1: xs[i] - lyricSize * 0.3, x2: nextX - lyricSize * 0.3, y1: yy, y2: yy, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
+    }
+  });
 }
 
 /** Quarter-note length of a note, including dots. */
