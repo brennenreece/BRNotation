@@ -418,8 +418,8 @@ function clefWidth(clef: string, size: number): number {
   return size * 0.671;
 }
 
-/** Gap between a key signature (or clef) and the time signature, matching VexFlow's modifier padding. */
-const TIME_SIG_PADDING = 10;
+/** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
+const TIME_SIG_PADDING = 15;
 
 /** Advance width of each time-signature digit in em, measured from Bravura. */
 const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.436, 0.434];
