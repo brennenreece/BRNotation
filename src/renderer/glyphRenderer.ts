@@ -148,7 +148,9 @@ export function renderGlyphScore(
   // Tab-only blocks draw just the tab row, with no staff above it.
   const isTabOnly = score.mode === "tab";
   const numStrings = score.tuning.length || 6;
-  const tabSpacing = Math.max(8, options.tabLineSpacing ?? 16);
+  // Coupled tab rows share the staff's space size, so the two systems read as one grid.
+  // Tab-only blocks keep the tabLineSpacing setting.
+  const tabSpacing = isCoupled ? lineSpacing : Math.max(8, options.tabLineSpacing ?? 16);
   const tabHeight = (numStrings - 1) * tabSpacing;
   // Gap between the staff and its tab row in coupled blocks.
   const COUPLED_STAFF_TAB_GAP = 60;
@@ -231,9 +233,9 @@ export function renderGlyphScore(
     // each measure's right edge uses its closing barline type. In coupled blocks the line
     // start is drawn as one system connector below.
     if (measureInLine === 0 && !isCoupled) {
-      drawBarlineLeft(svg, xPos, y0, lineSpacing, measure.startBarline === "repeat-begin");
+      drawBarlineLeft(svg, xPos, y0, 4 * lineSpacing, measure.startBarline === "repeat-begin");
     }
-    drawBarlineRight(svg, xPos + thisMeasureWidth, y0, lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
+    drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
     layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
 
@@ -253,6 +255,11 @@ export function renderGlyphScore(
         );
       }
       drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      const tabHeightPx = (numStrings - 1) * tabSpacing;
+      drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
+      if (measureInLine === 0 && measure.startBarline === "repeat-begin") {
+        drawBarlineLeft(svg, xPos, tabY0, tabHeightPx, true);
+      }
     }
   }
 
@@ -289,25 +296,29 @@ const THICK_BAR = 4.5;
 const BAR_GAP = 3;
 const REPEAT_DOT_R = 2;
 
-function barLine(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number, width: number): void {
+/**
+ * A vertical bar spanning `height` px from y0. Staff barlines span 4 spaces; coupled tab
+ * barlines pass the tab's own height so both systems get the same barline types.
+ */
+function barLine(svg: SVGSVGElement, x: number, y0: number, height: number, width: number): void {
   svg.appendChild(
     el("rect", {
       x: x - width / 2,
       y: y0,
       width,
-      height: 4 * lineSpacing,
+      height,
       style: "fill: var(--text-normal, #000)",
     })
   );
 }
 
-function repeatDots(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number): void {
-  // Dots sit in the two middle spaces of the staff.
-  for (const sp of [1.5, 2.5]) {
+/** Repeat dots at the given fractions of `height` (staff: middle two spaces). */
+function repeatDots(svg: SVGSVGElement, x: number, y0: number, height: number, fractions: number[] = [3 / 8, 5 / 8]): void {
+  for (const f of fractions) {
     svg.appendChild(
       el("circle", {
         cx: x,
-        cy: y0 + sp * lineSpacing,
+        cy: y0 + f * height,
         r: REPEAT_DOT_R,
         style: "fill: var(--text-normal, #000)",
       })
@@ -316,13 +327,13 @@ function repeatDots(svg: SVGSVGElement, x: number, y0: number, lineSpacing: numb
 }
 
 /** Left edge of a line: a thin system bar, or a thick and thin pair for a repeat-begin. */
-function drawBarlineLeft(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number, repeatBegin: boolean): void {
+function drawBarlineLeft(svg: SVGSVGElement, x: number, y0: number, height: number, repeatBegin: boolean): void {
   if (repeatBegin) {
-    barLine(svg, x + THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
-    barLine(svg, x + THICK_BAR + BAR_GAP + THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
-    repeatDots(svg, x + THICK_BAR + BAR_GAP + THIN_BAR + 4, y0, lineSpacing);
+    barLine(svg, x + THICK_BAR / 2, y0, height, THICK_BAR);
+    barLine(svg, x + THICK_BAR + BAR_GAP + THIN_BAR / 2, y0, height, THIN_BAR);
+    repeatDots(svg, x + THICK_BAR + BAR_GAP + THIN_BAR + 4, y0, height);
   } else {
-    barLine(svg, x, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x, y0, height, THIN_BAR);
   }
 }
 
@@ -331,24 +342,24 @@ function drawBarlineRight(
   svg: SVGSVGElement,
   x: number,
   y0: number,
-  lineSpacing: number,
+  height: number,
   type: string | undefined,
-  isLastOnLine: boolean,
+  _isLastOnLine: boolean,
   _family: string,
   _glyphSize: number
 ): void {
   if (type === "double") {
-    barLine(svg, x - BAR_GAP - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
-    barLine(svg, x - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x - BAR_GAP - THIN_BAR / 2, y0, height, THIN_BAR);
+    barLine(svg, x - THIN_BAR / 2, y0, height, THIN_BAR);
   } else if (type === "end") {
-    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR, y0, lineSpacing, THIN_BAR);
-    barLine(svg, x - THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
+    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR, y0, height, THIN_BAR);
+    barLine(svg, x - THICK_BAR / 2, y0, height, THICK_BAR);
   } else if (type === "repeat-end") {
-    repeatDots(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR - 4, y0, lineSpacing);
-    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
-    barLine(svg, x - THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
+    repeatDots(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR - 4, y0, height);
+    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR / 2, y0, height, THIN_BAR);
+    barLine(svg, x - THICK_BAR / 2, y0, height, THICK_BAR);
   } else {
-    barLine(svg, x, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x, y0, height, THIN_BAR);
   }
 }
 
