@@ -292,11 +292,6 @@ export function renderGlyphScore(
   return wrapper;
 }
 
-/**
- * Horizontal share for each note in a measure, following VexFlow's Formatter: a softmax over
- * note durations with factor 10, so longer notes get more room but not in direct proportion.
- */
-
 /** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
 function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number): number[] {
   return noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size);
@@ -309,7 +304,8 @@ function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number
 function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, headScale: number, size: number): number[] {
   const headHalf = (size * 0.3 * headScale) / 2;
   return notes.map((note, i) => {
-    let gap = NOTE_MIN_GAP;
+    // Beamed notes need a wider gap so the beam's slope and the stems stay clear of neighbours.
+    let gap = beamCount(note) > 0 ? NOTE_MIN_GAP + 6 : NOTE_MIN_GAP;
     if (tabSize > 0) {
       const labels = note.isRest ? [] : tabPositionsFor(note, tuning).map((p) => String(p.fret));
       const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
