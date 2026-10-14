@@ -40,6 +40,11 @@ const G = {
   flag32ndUp: 0xe244,
   flag32ndDown: 0xe245,
   timeSig0: 0xe080,
+  barlineDouble: 0xe031,
+  barlineFinal: 0xe032,
+  repeatLeft: 0xe040,
+  repeatRight: 0xe041,
+  repeatDots: 0xe043,
   timeSigSlash: 0xe09a,
   restWhole: 0xe4e3,
   restHalf: 0xe4e4,
@@ -215,39 +220,20 @@ export function renderGlyphScore(
       const mClef = measure.clef || clef;
       const clefCp = mClef === "bass" ? G.fClef : mClef === "alto" || mClef === "tenor" ? G.cClef : G.gClef;
       glyph(svg, clefCp, xPos + 4, clefBaselineY(mClef, y0, lineSpacing), glyphSize, family);
+      const keyX = xPos + 4 + clefWidth(mClef, glyphSize);
+      const key = measure.keySignature || score.keySignature;
+      const keyEnd = key ? drawKeySignature(svg, key, mClef, keyX, y0, glyphSize, lineSpacing, family) : keyX;
       const ts = measure.timeSignature || score.timeSignature;
-      if (ts) drawTimeSignature(svg, ts, xPos + 4 + clefWidth(mClef, glyphSize), y0, glyphSize, lineSpacing, family);
+      if (ts) drawTimeSignature(svg, ts, keyEnd + 6, y0, glyphSize, lineSpacing, family);
     }
 
-    // Same barline placement as the VexFlow staff: each measure ends with a single barline
-    // at its right edge; the first measure of a line also gets one at its left edge.
-    // In coupled blocks the line start is drawn as one system connector below.
+    // Barlines follow the VexFlow staff: the first measure of a line gets a left edge, and
+    // each measure's right edge uses its closing barline type. In coupled blocks the line
+    // start is drawn as one system connector below.
     if (measureInLine === 0 && !isCoupled) {
-      svg.appendChild(
-        el("line", {
-          x1: xPos,
-          x2: xPos,
-          y1: y0,
-          y2: y0 + 4 * lineSpacing,
-          style: "stroke: var(--text-normal, #000)",
-          "stroke-width": 1,
-        })
-      );
+      drawBarlineLeft(svg, xPos, y0, lineSpacing, measure.startBarline === "repeat-begin");
     }
-    const isEndBar = measure.barline === "end" || measure.barline === "repeat-end";
-    if (!isEndBar || !isLastOnLine) {
-      const xBar = xPos + thisMeasureWidth;
-      svg.appendChild(
-        el("line", {
-          x1: xBar,
-          x2: xBar,
-          y1: y0,
-          y2: y0 + 4 * lineSpacing,
-          style: "stroke: var(--text-normal, #000)",
-          "stroke-width": 1,
-        })
-      );
-    }
+    drawBarlineRight(svg, xPos + thisMeasureWidth, y0, lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
     layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
 
@@ -297,6 +283,123 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number): number[
   return xs;
 }
 
+/** Vertical lines and repeat dots, drawn with the same geometry as the VexFlow staff. */
+const THIN_BAR = 1;
+const THICK_BAR = 4.5;
+const BAR_GAP = 3;
+const REPEAT_DOT_R = 2;
+
+function barLine(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number, width: number): void {
+  svg.appendChild(
+    el("rect", {
+      x: x - width / 2,
+      y: y0,
+      width,
+      height: 4 * lineSpacing,
+      style: "fill: var(--text-normal, #000)",
+    })
+  );
+}
+
+function repeatDots(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number): void {
+  // Dots sit in the two middle spaces of the staff.
+  for (const sp of [1.5, 2.5]) {
+    svg.appendChild(
+      el("circle", {
+        cx: x,
+        cy: y0 + sp * lineSpacing,
+        r: REPEAT_DOT_R,
+        style: "fill: var(--text-normal, #000)",
+      })
+    );
+  }
+}
+
+/** Left edge of a line: a thin system bar, or a thick and thin pair for a repeat-begin. */
+function drawBarlineLeft(svg: SVGSVGElement, x: number, y0: number, lineSpacing: number, repeatBegin: boolean): void {
+  if (repeatBegin) {
+    barLine(svg, x + THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
+    barLine(svg, x + THICK_BAR + BAR_GAP + THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
+    repeatDots(svg, x + THICK_BAR + BAR_GAP + THIN_BAR + 4, y0, lineSpacing);
+  } else {
+    barLine(svg, x, y0, lineSpacing, THIN_BAR);
+  }
+}
+
+/** Right edge of a measure, from the closing barline type. */
+function drawBarlineRight(
+  svg: SVGSVGElement,
+  x: number,
+  y0: number,
+  lineSpacing: number,
+  type: string | undefined,
+  isLastOnLine: boolean,
+  _family: string,
+  _glyphSize: number
+): void {
+  if (type === "double") {
+    barLine(svg, x - BAR_GAP - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
+  } else if (type === "end") {
+    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x - THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
+  } else if (type === "repeat-end") {
+    repeatDots(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR - 4, y0, lineSpacing);
+    barLine(svg, x - THICK_BAR / 2 - BAR_GAP - THIN_BAR / 2, y0, lineSpacing, THIN_BAR);
+    barLine(svg, x - THICK_BAR / 2, y0, lineSpacing, THICK_BAR);
+  } else {
+    barLine(svg, x, y0, lineSpacing, THIN_BAR);
+  }
+}
+
+// Key signatures: accidentals in circle-of-fifths order, placed at their standard staff steps.
+const SHARP_ORDER = ["F", "C", "G", "D", "A", "E", "B"];
+const FLAT_ORDER = ["B", "E", "A", "D", "G", "C", "F"];
+const KEY_COUNTS: Record<string, { sharps: number } | { flats: number }> = {
+  C: { sharps: 0 }, G: { sharps: 1 }, D: { sharps: 2 }, A: { sharps: 3 }, E: { sharps: 4 }, B: { sharps: 5 }, "F#": { sharps: 6 }, "C#": { sharps: 7 },
+  F: { flats: 1 }, Bb: { flats: 2 }, Eb: { flats: 3 }, Ab: { flats: 4 }, Db: { flats: 5 }, Gb: { flats: 6 }, Cb: { flats: 7 },
+};
+// Octave of each letter for sharps and flats, following standard key-signature placement.
+const SHARP_OCTAVE_OFFSET: Record<string, number> = { F: 1, C: 1, G: 1, D: 1, A: 0, E: 0, B: 0 };
+const FLAT_OCTAVE_OFFSET: Record<string, number> = { B: 0, E: 1, A: 0, D: 1, G: 0, C: 1, F: 0 };
+
+function drawKeySignature(
+  svg: SVGSVGElement,
+  key: string,
+  clef: string,
+  x: number,
+  y0: number,
+  glyphSize: number,
+  lineSpacing: number,
+  family: string
+): number {
+  const root = key.replace(/\s*(major|minor)$/i, "").trim();
+  const counts = KEY_COUNTS[root] ?? KEY_COUNTS[root.charAt(0).toUpperCase() + root.slice(1)];
+  if (!counts) return x;
+  const isSharp = "sharps" in counts;
+  const n = isSharp ? counts.sharps : counts.flats;
+  if (n === 0) return x;
+  const order = isSharp ? SHARP_ORDER : FLAT_ORDER;
+  const offsets = isSharp ? SHARP_OCTAVE_OFFSET : FLAT_OCTAVE_OFFSET;
+  const bottom = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
+  const bottomY = y0 + 4 * lineSpacing;
+  const cp = isSharp ? G.accidentalSharp : G.accidentalFlat;
+  const step = (letter: string) => {
+    // Absolute index of this letter's position in its standard key-signature octave.
+    const octave = Math.floor(bottom / 7) + offsets[letter];
+    return octave * 7 + STEP_INDEX[letter.toLowerCase()];
+  };
+  let cx = x;
+  for (let i = 0; i < n; i++) {
+    const letter = order[i];
+    // Same placement as note accidentals: one diatonic step is half a staff space.
+    const yHead = bottomY - ((step(letter) - bottom) * lineSpacing) / 2;
+    glyph(svg, cp, cx, yHead, glyphSize, family);
+    cx += glyphSize * 0.35;
+  }
+  return cx;
+}
+
 /** Approximate advance width of a clef glyph, so the time signature sits after it. */
 function clefWidth(clef: string, size: number): number {
   return size * (clef === "treble" || !clef ? 0.6 : 0.45);
@@ -314,9 +417,11 @@ function drawTimeSignature(
 ): void {
   const [num, den] = ts.split("/");
   if (!num || !den) return;
+  // Numerator and denominator are centred in a column as wide as the longer of the two.
+  const digitW = size * 0.5;
+  const colW = Math.max(num.length, den.length) * digitW;
   const drawNumber = (text: string, baseline: number) => {
-    const digitW = size * 0.5;
-    const startX = x + digitW * 0.1;
+    const startX = x + (colW - text.length * digitW) / 2;
     for (let k = 0; k < text.length; k++) {
       const d = parseInt(text[k], 10);
       glyph(svg, G.timeSig0 + d, startX + k * digitW, baseline, size, family);
