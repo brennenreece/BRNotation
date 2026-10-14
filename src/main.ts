@@ -34,6 +34,7 @@ interface BRNotationPluginSettings {
   tabFont: string;
   tabFontSize: number;
   tabNumberOffset: number;
+  spacingScale: number;
   diagramStyle: DiagramDotStyle;
 }
 
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   tabFont: "system",
   tabFontSize: 13,
   tabNumberOffset: 0,
+  spacingScale: 1,
   diagramStyle: "classic",
 };
 
@@ -212,6 +214,7 @@ export default class BRNotationPlugin extends Plugin {
           tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
           tabFontSize: this.settings.tabFontSize,
           tabNumberOffset: this.settings.tabNumberOffset,
+          spacingScale: this.settings.spacingScale,
         });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
@@ -393,6 +396,20 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.tabNumberOffset = val;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Spacing after barlines and time signature")
+      .setDesc("Scales the space after barlines and after the time signature in staff notation. 1 is the default; raise it for more room.")
+      .addSlider((sl) =>
+        sl
+          .setLimits(0.5, 3, 0.1)
+          .setValue(this.plugin.settings.spacingScale)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.spacingScale = val;
             await this.plugin.saveSettings();
           })
       );

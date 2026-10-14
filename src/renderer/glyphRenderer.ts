@@ -21,6 +21,8 @@ export interface GlyphRenderOptions {
   tabNumberOffset?: number;
   /** Notehead size multiplier per font, matching the VexFlow path. */
   noteheadScale?: number;
+  /** Multiplier for the space after barlines and after the time signature (1 = default). */
+  spacingScale?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -160,6 +162,9 @@ export function renderGlyphScore(
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
   const headScale = options.noteheadScale ?? 1;
+  const spacing = Math.max(0, options.spacingScale ?? 1);
+  const noteGap = NOTE_GAP * spacing;
+  const noteEndInset = NOTE_END_INSET * spacing;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -187,7 +192,7 @@ export function renderGlyphScore(
     const y0 = 20 + lineIndex * (blockHeight + 20);
 
     if (isTabOnly) {
-      const tabNoteStart = xPos + NOTE_GAP;
+      const tabNoteStart = xPos + noteGap;
       // No staff: only the tab row, with the system connector and barlines around it.
       const tabY0 = y0;
       if (measureInLine === 0) {
@@ -195,7 +200,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - NOTE_END_INSET - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -219,7 +224,7 @@ export function renderGlyphScore(
 
     // Where the notes of this measure start. On the first measure of a line the header
     // (clef, key, time signature) comes first, and notes start a stave-padding gap after it.
-    let noteStartX = xPos + NOTE_GAP;
+    let noteStartX = xPos + noteGap;
     if (measureInLine === 0) {
       const mClef = measure.clef || clef;
       const clefCp = mClef === "bass" ? G.fClef : mClef === "alto" || mClef === "tenor" ? G.cClef : G.gClef;
@@ -234,7 +239,7 @@ export function renderGlyphScore(
       if (ts) {
         headerEnd = drawTimeSignature(svg, ts, keyEnd + TIME_SIG_PADDING, y0, glyphSize, lineSpacing, family);
       }
-      noteStartX = headerEnd + NOTE_GAP;
+      noteStartX = headerEnd + noteGap;
     }
 
     // Barlines follow the VexFlow staff: the first measure of a line gets a left edge, and
@@ -245,7 +250,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled));
+    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled));
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -262,7 +267,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
       const tabHeightPx = (numStrings - 1) * tabSpacing;
       drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
       if (measureInLine === 0 && measure.startBarline === "repeat-begin") {
@@ -300,7 +305,7 @@ function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number): num
 
 function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?: number[]): number[] {
   if (!notes.length) return [];
-  const justify = Math.max(0, width - NOTE_END_INSET);
+  const justify = Math.max(0, width);
   const onsets: number[] = [];
   let t = 0;
   for (const n of notes) {
