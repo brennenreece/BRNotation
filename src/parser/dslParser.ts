@@ -54,6 +54,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let baseFret = 1;
   let chordColumns: number | undefined = undefined;
   let chordFont: string | undefined = undefined;
+  let chordFretCount: number | undefined = undefined;
   // Completed chord boxes. A `name:` line after a box's `frets:` line starts the next box.
   const rawChordBoxes: RawChordBox[] = [];
   let pendingChord: RawChordBox | null = null;
@@ -209,6 +210,13 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       else errors.push(`Invalid columns value "${trimmed.slice(trimmed.indexOf(":") + 1).trim()}". Use a whole number, e.g. columns: 4.`);
       continue;
     }
+    if (lower.startsWith("fret-count:") || lower.startsWith("frets-shown:")) {
+      const raw = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+      const num = parseInt(raw, 10);
+      if (/^\d+$/.test(raw) && num >= 3 && num <= 7) chordFretCount = num;
+      else errors.push(`Invalid fret-count "${raw}". Use a whole number from 3 to 7, e.g. fret-count: 4.`);
+      continue;
+    }
     if (lower.startsWith("chord-font:")) {
       const raw = trimmed.slice(trimmed.indexOf(":") + 1).trim();
       if (CHORD_FONT_KEYS.includes(raw)) chordFont = raw;
@@ -274,6 +282,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       baseFret: box.baseFret,
       dotStyle,
       dotColor,
+      numFrets: chordFretCount,
     }));
     return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordFont, errors };
   } else if (mode === "fretboard") {

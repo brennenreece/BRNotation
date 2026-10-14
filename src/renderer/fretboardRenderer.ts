@@ -102,7 +102,7 @@ export function renderChordDiagram(
   const wrapper = containerEl.createDiv({ cls: "br-diagram br-chord-box-container" });
 
   const numStrings = data.frets.length || 6;
-  const numFrets = 5;
+  const numFrets = data.numFrets ?? 5;
   const baseFret = data.baseFret || 1;
 
   const width = options.width || 180;

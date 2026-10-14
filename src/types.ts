@@ -124,6 +124,8 @@ export interface ChordDiagramData {
   frets: (number | "x")[]; // index 0 is lowest string (E2) or highest? We will standardize: 0 is lowest string (6th string)
   fingers?: (number | string | null)[];
   baseFret?: number; // 1-based base fret
+  /** Number of fret spaces drawn (default 5). Set by `fret-count:` in the block. */
+  numFrets?: number;
   barre?: {
     fret: number;
     fromStr: number; // 1-based (6=low E, 1=high E)

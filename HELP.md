@@ -465,7 +465,17 @@ frets: x 0 2 0 2 0
 
 Chord box strings are drawn in black. Fret lines and the nut are black too.
 
-A `columns:` value that is not a whole number, or a `chord-font:` value that is not one of the options above, shows an error above the box.
+Use `fret-count:` to set how many fret spaces each box draws. The default is 5. Use a whole number from 3 to 7. It applies to every box in the block:
+
+```brnotation
+fret-count: 4
+name: Am
+frets: x 0 2 2 1 0
+name: C
+frets: x 3 2 0 1 0
+```
+
+A `columns:` value that is not a whole number, a `chord-font:` value that is not one of the options above, or a `fret-count:` value outside 3 to 7 shows an error above the box.
 
 Use `tuning:` to draw a chord for another tuning:
 
