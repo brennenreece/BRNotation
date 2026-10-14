@@ -160,6 +160,10 @@ export interface ParsedBlock {
   notationScore?: NotationScore;
   chordGridScore?: ChordGridScore;
   chordDiagram?: ChordDiagramData;
+  /** Chord block with several boxes, laid out in rows of `columns`. */
+  chordDiagrams?: ChordDiagramData[];
+  chordColumns?: number;
+  chordFont?: string;
   fretboardScale?: FretboardScaleData;
   errors?: string[];
 }

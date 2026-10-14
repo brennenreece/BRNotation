@@ -22,6 +22,13 @@ import {
 } from "../types";
 import { TUNING_PRESETS } from "./scales";
 
+interface RawChordBox {
+  name: string;
+  frets: (number | "x")[];
+  fingers: (string | number | null)[];
+  baseFret: number;
+}
+
 export function parseBRNotationBlock(rawText: string): ParsedBlock {
   const lines = rawText.split(/\r?\n/);
   const errors: string[] = [];
@@ -44,6 +51,12 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let chordFrets: (number | "x")[] = [0, 0, 0, 0, 0, 0];
   let chordFingers: (string | number | null)[] = [];
   let baseFret = 1;
+  let chordColumns: number | undefined = undefined;
+  let chordFont: string | undefined = undefined;
+  // Completed chord boxes. A `name:` line after a box's `frets:` line starts the next box.
+  const rawChordBoxes: RawChordBox[] = [];
+  let pendingChord: RawChordBox | null = null;
+  const CHORD_FONT_KEYS = ["system", "julesjazz", "musejazz"];
 
   // Fretboard scale fields
   let scaleRoot = "A";
@@ -157,23 +170,46 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 
     // Chord-specific headers
     if (lower.startsWith("name:") || lower.startsWith("chord:")) {
-      chordName = trimmed.split(":")[1].trim();
+      // A new name starts a new box once the previous box has its frets
+      if (pendingChord) {
+        rawChordBoxes.push(pendingChord);
+        pendingChord = null;
+      }
+      chordName = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+      chordFrets = [0, 0, 0, 0, 0, 0];
+      chordFingers = [];
+      baseFret = 1;
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
     if (lower.startsWith("frets:")) {
       const fStr = trimmed.slice(6).trim();
       chordFrets = fStr.split(/\s+/).map((f) => (f.toLowerCase() === "x" ? "x" : parseInt(f, 10)));
+      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, baseFret };
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
     if (lower.startsWith("fingers:")) {
       const fStr = trimmed.slice(8).trim();
       chordFingers = fStr.split(/\s+/).map((f) => (f === "-" || f === "0" ? null : f));
+      if (pendingChord) pendingChord.fingers = chordFingers;
+      continue;
+    }
+    if (lower.startsWith("columns:") || lower.startsWith("cols:")) {
+      const num = parseInt(trimmed.slice(trimmed.indexOf(":") + 1).trim(), 10);
+      if (!isNaN(num) && num > 0) chordColumns = num;
+      else errors.push(`Invalid columns value "${trimmed.slice(trimmed.indexOf(":") + 1).trim()}". Use a whole number, e.g. columns: 4.`);
+      continue;
+    }
+    if (lower.startsWith("chord-font:")) {
+      const raw = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+      if (CHORD_FONT_KEYS.includes(raw)) chordFont = raw;
+      else errors.push(`Unknown chord-font "${raw}". Use one of: ${CHORD_FONT_KEYS.join(", ")}.`);
       continue;
     }
     if (lower.startsWith("base-fret:") || lower.startsWith("basefret:")) {
       baseFret = parseInt(trimmed.split(":")[1].trim(), 10) || 1;
+      if (pendingChord) pendingChord.baseFret = baseFret;
       continue;
     }
 
@@ -220,16 +256,18 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     const chordGridScore = parseChordGrid(contentLines, title, timeSignature, measuresPerRow, gridKey, showFunctions, showMeasureNumbers);
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
-    const chordDiagram: ChordDiagramData = {
-      name: chordName,
+    if (pendingChord) rawChordBoxes.push(pendingChord);
+    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, baseFret });
+    const chordBoxes: ChordDiagramData[] = rawChordBoxes.map((box) => ({
+      name: box.name,
       tuning,
-      frets: chordFrets,
-      fingers: chordFingers,
-      baseFret,
+      frets: box.frets,
+      fingers: box.fingers,
+      baseFret: box.baseFret,
       dotStyle,
       dotColor,
-    };
-    return { mode, rawText, chordDiagram, errors };
+    }));
+    return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordFont, errors };
   } else if (mode === "fretboard") {
     const fretboardScale: FretboardScaleData = {
       title,

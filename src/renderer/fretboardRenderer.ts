@@ -70,6 +70,29 @@ function shapeFor(style: DiagramDotStyle | "root" | undefined): "circle" | "squa
 }
 
 /** Render a vertical chord box diagram */
+/**
+ * Renders one or more chord boxes in a grid with `columns` boxes per row.
+ * A single box renders exactly as before.
+ */
+export function renderChordBoxes(
+  containerEl: HTMLElement,
+  boxes: ChordDiagramData[],
+  columns?: number
+): void {
+  containerEl.empty();
+  if (boxes.length <= 1 && !columns) {
+    renderChordDiagram(containerEl, boxes[0]);
+    return;
+  }
+  const cols = Math.max(1, Math.min(columns ?? boxes.length, boxes.length));
+  const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
+  grid.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+  for (const box of boxes) {
+    const cell = grid.createDiv({ cls: "br-chord-box-cell" });
+    renderChordDiagram(cell, box);
+  }
+}
+
 export function renderChordDiagram(
   containerEl: HTMLElement,
   data: ChordDiagramData,

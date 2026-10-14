@@ -421,6 +421,43 @@ base-fret: 2
 
 Chord boxes use the same look and dot styles as fretboard maps, so a `style:` line works here too. See [Diagram styles](#diagram-styles).
 
+### Several chord boxes in one block
+
+Write a new `name:` line to start the next box. Each box needs its own `name:` and `frets:` lines. Use `columns:` to set how many boxes sit in each row (default: all boxes in one row):
+
+```brnotation
+columns: 3
+name: C
+frets: x 3 2 0 1 0
+name: Am
+frets: x 0 2 2 1 0
+name: F
+frets: 1 3 3 2 1 1
+name: G
+frets: 3 2 0 0 0 3
+name: Dm
+frets: x x 0 2 3 1
+name: E7
+frets: 0 2 0 1 0 0
+```
+
+`fingers:` and `base-fret:` belong to the box above them. Put them after that box's `frets:` line.
+
+Use `chord-font:` to set the font for the chord names above the boxes in one block. Options: `system`, `julesjazz`, `musejazz`. Without it, the block uses the **Chord symbol font** setting. The `chord-font:` option changes only chord box names, not chord symbols in staff or chord grid blocks.
+
+```brnotation
+columns: 2
+chord-font: julesjazz
+name: Cmaj7
+frets: x 3 2 0 0 0
+name: A7
+frets: x 0 2 0 2 0
+```
+
+Chord box strings are drawn in black. Fret lines and the nut are black too.
+
+A `columns:` value that is not a whole number, or a `chord-font:` value that is not one of the options above, shows an error above the box.
+
 Use `tuning:` to draw a chord for another tuning:
 
 ```brnotation

@@ -15,7 +15,8 @@ import { parseBRNotationBlock } from "./parser/dslParser";
 import type { DiagramDotStyle } from "./types";
 import { TUNING_PRESETS } from "./parser/scales";
 import { renderChordGrid } from "./renderer/chordGridRenderer";
-import { renderChordDiagram, renderFretboardScale } from "./renderer/fretboardRenderer";
+import { renderChordDiagram,
+  renderChordBoxes, renderFretboardScale } from "./renderer/fretboardRenderer";
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
 import { renderGlyphScore } from "./renderer/glyphRenderer";
 import { VexFlow } from "vexflow";
@@ -208,7 +209,14 @@ export default class BRNotationPlugin extends Plugin {
       if (parsed.mode === "chordgrid" && parsed.chordGridScore) {
         renderChordGrid(body, parsed.chordGridScore);
       } else if (parsed.mode === "chord" && parsed.chordDiagram) {
-        renderChordDiagram(body, { ...parsed.chordDiagram, dotStyle: parsed.chordDiagram.dotStyle ?? this.settings.diagramStyle });
+        const boxes = (parsed.chordDiagrams ?? [parsed.chordDiagram]).map((box) => ({
+          ...box,
+          dotStyle: box.dotStyle ?? this.settings.diagramStyle,
+        }));
+        renderChordBoxes(body, boxes, parsed.chordColumns);
+        const fontKey = parsed.chordFont ?? this.settings.chordFont;
+        const fontFamily = CHORD_FONT_OPTIONS[fontKey]?.family ?? CHORD_FONT_OPTIONS.system.family;
+        body.style.setProperty("--br-chord-box-font", fontFamily);
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
         renderFretboardScale(body, { ...parsed.fretboardScale, dotStyle: parsed.fretboardScale.dotStyle ?? this.settings.diagramStyle });
       } else if (parsed.notationScore?.render === "font") {
