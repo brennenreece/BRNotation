@@ -403,15 +403,20 @@ function drawKeySignature(
     // Same placement as note accidentals: one diatonic step is half a staff space.
     const yHead = bottomY - ((step(letter) - bottom) * lineSpacing) / 2;
     glyph(svg, cp, cx, yHead, glyphSize, family);
-    cx += glyphSize * 0.35;
+    cx += glyphSize * 0.25;
   }
   return cx;
 }
 
-/** Approximate advance width of a clef glyph, so the time signature sits after it. */
+/** Advance width of a clef glyph in em, measured from Bravura. */
 function clefWidth(clef: string, size: number): number {
-  return size * (clef === "treble" || !clef ? 0.6 : 0.45);
+  if (clef === "bass") return size * 0.684;
+  if (clef === "alto" || clef === "tenor") return size * 0.699;
+  return size * 0.671;
 }
+
+/** Advance width of each time-signature digit in em, measured from Bravura. */
+const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.436, 0.434];
 
 /** Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves. */
 function drawTimeSignature(
@@ -425,14 +430,17 @@ function drawTimeSignature(
 ): void {
   const [num, den] = ts.split("/");
   if (!num || !den) return;
-  // Numerator and denominator are centred in a column as wide as the longer of the two.
-  const digitW = size * 0.5;
-  const colW = Math.max(num.length, den.length) * digitW;
+  // Numerator and denominator are centred in a column as wide as the longer of the two,
+  // using each digit's measured advance.
+  const textWidth = (text: string) =>
+    [...text].reduce((w, ch) => w + TIME_DIGIT_EM[parseInt(ch, 10)] * size, 0);
+  const colW = Math.max(textWidth(num), textWidth(den));
   const drawNumber = (text: string, baseline: number) => {
-    const startX = x + (colW - text.length * digitW) / 2;
-    for (let k = 0; k < text.length; k++) {
-      const d = parseInt(text[k], 10);
-      glyph(svg, G.timeSig0 + d, startX + k * digitW, baseline, size, family);
+    let cx = x + (colW - textWidth(text)) / 2;
+    for (const ch of text) {
+      const d = parseInt(ch, 10);
+      glyph(svg, G.timeSig0 + d, cx, baseline, size, family);
+      cx += TIME_DIGIT_EM[d] * size;
     }
   };
   // The numerator sits on the top two staff spaces, the denominator on the bottom two.
