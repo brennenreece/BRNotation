@@ -371,7 +371,7 @@ class BRNotationSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Tab number font size")
-      .setDesc("Size in points for fret numbers on tablature (default 13).")
+      .setDesc("Size in points for fret numbers on tablature (default 13). Tab lines widen automatically when the numbers are large enough to overlap in chords.")
       .addSlider((sl) =>
         sl
           .setLimits(8, 24, 1)

@@ -146,8 +146,10 @@ export function renderGlyphScore(
   // Tab-only blocks draw just the tab row, with no staff above it.
   const isTabOnly = score.mode === "tab";
   const numStrings = score.tuning.length || 6;
-  // Tab strings share the staff's line spacing, so tab and staff read as one grid.
-  const tabSpacing = lineSpacing;
+  // Tab strings share the staff's line spacing so the two read as one grid, but never tighter
+  // than a fret number's height plus a small margin, so stacked chord numbers do not overlap.
+  const tabSize = options.tabFontSize ?? 13;
+  const tabSpacing = Math.max(lineSpacing, tabSize * 0.72 + 2);
   const tabHeight = (numStrings - 1) * tabSpacing;
   // Gap between the staff and its tab row in coupled blocks.
   const COUPLED_STAFF_TAB_GAP = 60;
@@ -156,7 +158,6 @@ export function renderGlyphScore(
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
   const totalHeight = totalLines * (blockHeight + 20) + 20;
   const tabFont = options.tabFontFamily ?? family;
-  const tabSize = options.tabFontSize ?? 13;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
   const headScale = options.noteheadScale ?? 1;
 
@@ -223,7 +224,9 @@ export function renderGlyphScore(
       const key = measure.keySignature || score.keySignature;
       const keyEnd = key ? drawKeySignature(svg, key, mClef, keyX, y0, glyphSize, lineSpacing, family) : keyX;
       const ts = measure.timeSignature || score.timeSignature;
-      if (ts) drawTimeSignature(svg, ts, keyEnd + 6, y0, glyphSize, lineSpacing, family);
+      // VexFlow pads each modifier by 10 px, but the clef and key slots take no padding,
+      // so the time signature starts 10 px after the last key accidental or the clef.
+      if (ts) drawTimeSignature(svg, ts, keyEnd + TIME_SIG_PADDING, y0, glyphSize, lineSpacing, family);
     }
 
     // Barlines follow the VexFlow staff: the first measure of a line gets a left edge, and
@@ -414,6 +417,9 @@ function clefWidth(clef: string, size: number): number {
   if (clef === "alto" || clef === "tenor") return size * 0.699;
   return size * 0.671;
 }
+
+/** Gap between a key signature (or clef) and the time signature, matching VexFlow's modifier padding. */
+const TIME_SIG_PADDING = 10;
 
 /** Advance width of each time-signature digit in em, measured from Bravura. */
 const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.436, 0.434];
