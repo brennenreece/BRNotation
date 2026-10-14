@@ -86,7 +86,7 @@ export function renderChordBoxes(
   }
   const cols = Math.max(1, Math.min(columns ?? boxes.length, boxes.length));
   const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
-  grid.style.gridTemplateColumns = `repeat(${cols}, max-content)`;
+  grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
   for (const box of boxes) {
     const cell = grid.createDiv({ cls: "br-chord-box-cell" });
     renderChordDiagram(cell, box);
