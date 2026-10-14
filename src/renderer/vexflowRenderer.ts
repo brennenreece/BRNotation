@@ -8,6 +8,7 @@ import {
   Barline,
   Dot,
   Formatter,
+  GhostNote,
   Renderer,
   Stave,
   Voice,
@@ -182,7 +183,7 @@ export function renderVexflowScore(
 
     // Convert score notes to VexFlow notes
     const staveNotes: StaveNote[] = [];
-    const tabNotes: TabNote[] = [];
+    const tabNotes: (TabNote | GhostNote)[] = [];
 
     measure.notes.forEach((note, nIdx) => {
       const isSelected =
@@ -264,7 +265,9 @@ export function renderVexflowScore(
         const positions: { str: number; fret: number | string }[] = [];
 
         if (note.isRest) {
-          positions.push({ str: 3, fret: "X" });
+          // Rests take their time slot in tab but show no number.
+          tabNotes.push(new GhostNote({ duration: note.duration + "r", dots: note.dots }));
+          return;
         } else if (note.tabPositions && note.tabPositions.length > 0) {
           note.tabPositions.forEach((tp) => {
             positions.push({ str: tp.str, fret: tp.fret });

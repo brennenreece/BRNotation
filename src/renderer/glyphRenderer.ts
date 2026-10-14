@@ -783,7 +783,7 @@ function drawTabMeasure(
 
 /** Tab string/fret pairs for a note, using the same rules as the VexFlow coupled tab. */
 function tabPositionsFor(note: ScoreNote, tuning: string[]): { str: number; fret: number | string }[] {
-  if (note.isRest) return [{ str: 3, fret: "X" }];
+  if (note.isRest) return [];
   if (note.tabPositions && note.tabPositions.length > 0) {
     return note.tabPositions.map((tp) => ({ str: tp.str, fret: tp.fret }));
   }
