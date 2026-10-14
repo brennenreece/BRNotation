@@ -346,8 +346,11 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
     onsets.push(t);
     t += noteQuarters(n);
   }
-  const totalQ = t || 1;
-  const pxPerQuarter = justify / totalQ;
+  // The last note's own duration is not spread across the bar, so the grid runs from the first
+  // onset to the last one and the last note sits near the right edge instead of leaving a blank slot.
+  const lastOnset = onsets[onsets.length - 1];
+  const lastRoom = (minGaps?.[notes.length - 1] ?? NOTE_MIN_GAP) / 2;
+  const pxPerQuarter = lastOnset > 0 ? Math.max(0, justify - lastRoom) / lastOnset : 0;
   // Place each note on its beat. If a note is closer to the previous one than its minimum gap,
   // push it right so labels never overlap, and carry the shift forward.
   const xs: number[] = [];
