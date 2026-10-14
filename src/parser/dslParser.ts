@@ -441,7 +441,7 @@ const BARLINE_TOKENS: Record<string, { closing: ClosingBarline; opening: Barline
 function tokenizeMeasure(measureStr: string): string[] {
   const tokens: string[] = [];
   // `:dur` directives are split out so `:q` is its own token even when written right after a note.
-  const regex = /"([^"]+)"|\[([^\]]+)\]\/(\w+)(\.?)(~?)|(:(?:[whq]|8|16|32)(?=\s|$))|([^\s]+)/gi;
+  const regex = /"([^"]+)"|\[([^\]]+)\](?:\/(\w+))?(\.?)(~?)|(:(?:[whq]|8|16|32)(?=\s|$))|([^\s]+)/gi;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(measureStr)) !== null) {
@@ -498,11 +498,11 @@ function parseNoteToken(
     };
   }
 
-  // Chord bracket note e.g. [c4,e4,g4]/q or [0:6,2:5,2:4]/w
-  const chordBracketMatch = token.match(/^\[(.*?)\]\/([whq8]|16|32)(\.?)(~?)/);
+  // Chord bracket note e.g. [c4,e4,g4]/q, [c4(5/3),e4(5/2)]/q, or [0:6,2:5,2:4]/w
+  const chordBracketMatch = token.match(/^\[(.*?)\](?:\/([whq8]|16|32))?(\.?)(~?)$/i);
   if (chordBracketMatch) {
     const inner = chordBracketMatch[1];
-    const duration = chordBracketMatch[2].toLowerCase() as DurationType;
+    const duration = chordBracketMatch[2] ? (chordBracketMatch[2].toLowerCase() as DurationType) : defaultDuration;
     const dots = chordBracketMatch[3] === "." ? 1 : 0;
     const tied = chordBracketMatch[4] === "~";
 
@@ -511,7 +511,13 @@ function parseNoteToken(
     const tabPositions: TabPosition[] = [];
 
     for (const part of parts) {
-      if (part.includes(":")) {
+      // Pitch with an explicit tab position, e.g. c4(5/3)
+      const withTab = part.match(/^(.+?)\((\d+)\/(\d+)\)$/);
+      if (withTab) {
+        const p = parsePitchString(withTab[1]);
+        if (p) pitches.push(p);
+        tabPositions.push({ fret: parseInt(withTab[2], 10), str: parseInt(withTab[3], 10) });
+      } else if (part.includes(":")) {
         const [f, s] = part.split(":");
         tabPositions.push({ fret: parseInt(f, 10), str: parseInt(s, 10) });
       } else {
@@ -520,6 +526,10 @@ function parseNoteToken(
       }
     }
 
+    // Explicit `pitch(fret/string)` positions only apply when every note has one, so the
+    // fret list always lines up with the pitch list. Partly specified chords are auto-placed.
+    const isPositioned = (part: string) => /\(\d+\/\d+\)$/.test(part) || part.includes(":");
+    const allPositioned = parts.length > 0 && parts.every(isPositioned);
     return {
       id,
       duration,
@@ -527,7 +537,7 @@ function parseNoteToken(
       dots,
       tied,
       pitches: pitches.length > 0 ? pitches : undefined,
-      tabPositions: tabPositions.length > 0 ? tabPositions : undefined,
+      tabPositions: allPositioned ? tabPositions : undefined,
     };
   }
 
