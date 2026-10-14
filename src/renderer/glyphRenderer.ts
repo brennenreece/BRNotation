@@ -185,10 +185,23 @@ export function renderGlyphScore(
     const lineIndex = Math.floor(mIdx / measuresPerLine);
     const measureInLine = mIdx % measuresPerLine;
     const countOnLine = Math.min(measuresPerLine, score.measures.length - lineIndex * measuresPerLine);
-    const measureWidth = Math.floor(containerWidth / countOnLine);
-    const xPos = measureInLine * measureWidth;
+    // Each system's first measure opens with the header (clef, key, time signature). Its box
+    // includes that header, so the bars after it are spaced evenly over the remaining length
+    // and the notes of every measure get the same usable width.
+    const lineFirst = score.measures[lineIndex * measuresPerLine];
+    const sysHeader = isTabOnly
+      ? 0
+      : headerWidth(
+          lineFirst.clef || clef,
+          lineFirst.keySignature || score.keySignature,
+          lineFirst.timeSignature || score.timeSignature,
+          glyphSize
+        ) + noteGap;
+    const measureWidth = Math.floor((containerWidth - sysHeader) / countOnLine);
+    const xPos = measureInLine === 0 ? 0 : sysHeader + (measureInLine - 1) * measureWidth;
     const isLastOnLine = measureInLine === countOnLine - 1;
-    const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidth;
+    const boxWidth = measureInLine === 0 ? sysHeader + measureWidth : measureWidth;
+    const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : boxWidth;
     const y0 = 20 + lineIndex * (blockHeight + 20);
 
     if (isTabOnly) {
@@ -284,11 +297,6 @@ export function renderGlyphScore(
  * note durations with factor 10, so longer notes get more room but not in direct proportion.
  */
 
-/**
- * Centre x of each note in a measure, shared by the staff and tab rows so they line up.
- * Follows VexFlow's Formatter: each context takes softmax(ticks) of the justify width, and
- * the last note keeps the end-padding inset (VexFlow Stave.defaultPadding).
- */
 /** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
 function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number): number[] {
   return noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size);
@@ -337,31 +345,54 @@ function accidentalWidth(note: ScoreNote, size: number): number {
   return widest;
 }
 
+/**
+ * Centre x of each note in a measure, shared by the staff and tab rows so they line up.
+ *
+ * Follows VexFlow's Formatter. The gap after each note is a softmax of its duration,
+ * 10^(ticks / total) normalised over the bar, so longer notes get more room without the
+ * exaggeration of a linear split. Each gap is at least that note's minimum width, and a
+ * single scale factor is solved so the gaps fill the bar exactly. The last note stops
+ * `minGap / 2` short of the right edge, which avoids an empty slot before the barline.
+ */
+const SPACING_BASE = 10; // VexFlow Tables.SOFTMAX_FACTOR
+
 function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?: number[]): number[] {
-  if (!notes.length) return [];
-  const justify = Math.max(0, width);
-  const onsets: number[] = [];
-  let t = 0;
-  for (const n of notes) {
-    onsets.push(t);
-    t += noteQuarters(n);
+  const n = notes.length;
+  if (!n) return [];
+  const xs = [xStart];
+  if (n === 1) return xs;
+
+  const minGapAt = (i: number) => minGaps?.[i] ?? NOTE_MIN_GAP;
+  const ticks = notes.map(noteQuarters);
+  const totalTicks = ticks.reduce((a, b) => a + b, 0);
+  const weights = ticks.map((t) => Math.pow(SPACING_BASE, t / totalTicks));
+  const weightSum = weights.reduce((a, b) => a + b, 0);
+
+  // Gap i sits between note i-1 and note i, sized by note i-1's duration.
+  const gapsFor = (scale: number) => {
+    const out: number[] = [];
+    for (let i = 1; i < n; i++) out.push(Math.max(minGapAt(i), (scale * weights[i - 1]) / weightSum));
+    return out;
+  };
+  const span = Math.max(0, width - minGapAt(n - 1) / 2);
+  const sumFor = (scale: number) => gapsFor(scale).reduce((a, b) => a + b, 0);
+
+  // Find the smallest scale whose gaps fill the span. If the minimum gaps alone overflow it,
+  // the notes keep those minimums (scale 0) and the bar is simply tighter than ideal.
+  let scale = 0;
+  if (sumFor(0) < span) {
+    let lo = 0;
+    let hi = Math.max(span, 1);
+    while (sumFor(hi) < span) hi *= 2;
+    for (let k = 0; k < 60; k++) {
+      const mid = (lo + hi) / 2;
+      if (sumFor(mid) < span) lo = mid;
+      else hi = mid;
+    }
+    scale = hi;
   }
-  // The last note's own duration is not spread across the bar, so the grid runs from the first
-  // onset to the last one and the last note sits near the right edge instead of leaving a blank slot.
-  const lastOnset = onsets[onsets.length - 1];
-  const lastRoom = (minGaps?.[notes.length - 1] ?? NOTE_MIN_GAP) / 2;
-  const pxPerQuarter = lastOnset > 0 ? Math.max(0, justify - lastRoom) / lastOnset : 0;
-  // Place each note on its beat. If a note is closer to the previous one than its minimum gap,
-  // push it right so labels never overlap, and carry the shift forward.
-  const xs: number[] = [];
-  let prev = -Infinity;
-  for (let i = 0; i < notes.length; i++) {
-    const minGap = minGaps?.[i] ?? NOTE_MIN_GAP;
-    const beatX = xStart + onsets[i] * pxPerQuarter;
-    const x = i === 0 ? beatX : Math.max(beatX, prev + minGap);
-    xs.push(x);
-    prev = x;
-  }
+
+  for (const gap of gapsFor(scale)) xs.push(xs[xs.length - 1] + gap);
   return xs;
 }
 
@@ -519,6 +550,34 @@ const TIME_DIGIT_CENTRE_EM = 0.0075;
  * Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves.
  * Returns the x where the time signature ends.
  */
+/**
+ * Width of the system header that precedes the first notes of a system: clef, key signature,
+ * and time signature. Mirrors the positions used when the header is drawn.
+ */
+function headerWidth(
+  clef: string,
+  key: string | undefined,
+  ts: string | undefined,
+  size: number
+): number {
+  let x = 4 + clefWidth(clef, size);
+  if (key) {
+    const root = key.replace(/\s*(major|minor)$/i, "").trim();
+    const counts = KEY_COUNTS[root] ?? KEY_COUNTS[root.charAt(0).toUpperCase() + root.slice(1)];
+    const n = counts ? ("sharps" in counts ? counts.sharps : counts.flats) : 0;
+    if (n > 0) x += n * size * 0.25;
+  }
+  if (ts) {
+    const [num, den] = ts.split("/");
+    if (num && den) {
+      const textWidth = (text: string) =>
+        [...text].reduce((w, ch) => w + TIME_DIGIT_EM[parseInt(ch, 10)] * size, 0);
+      x += TIME_SIG_PADDING + Math.max(textWidth(num), textWidth(den));
+    }
+  }
+  return x;
+}
+
 function drawTimeSignature(
   svg: SVGElement,
   ts: string,
