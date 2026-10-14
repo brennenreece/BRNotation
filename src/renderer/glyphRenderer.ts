@@ -278,24 +278,27 @@ export function renderGlyphScore(
  * Horizontal share for each note in a measure, following VexFlow's Formatter: a softmax over
  * note durations with factor 10, so longer notes get more room but not in direct proportion.
  */
-const SOFTMAX_FACTOR = 10;
-function noteShares(notes: ScoreNote[]): number[] {
-  const ticks = notes.map((n) => noteQuarters(n));
-  const total = ticks.reduce((a, b) => a + b, 0) || 1;
-  const exps = ticks.map((t) => Math.pow(SOFTMAX_FACTOR, t / total));
-  const sum = exps.reduce((a, b) => a + b, 0);
-  return exps.map((e) => e / sum);
-}
 
-/** Centre x of each note in a measure, shared by the staff and tab rows so they line up. */
+/**
+ * Centre x of each note in a measure, shared by the staff and tab rows so they line up.
+ * Follows VexFlow's Formatter: each context takes softmax(ticks) of the justify width, and
+ * the last note keeps the end-padding inset (VexFlow Stave.defaultPadding).
+ */
 function noteCentres(notes: ScoreNote[], xStart: number, width: number): number[] {
-  const xs: number[] = [];
-  let acc = xStart;
-  for (const sh of noteShares(notes)) {
-    xs.push(acc + (width * sh) / 2);
-    acc += width * sh;
+  const justify = Math.max(0, width - NOTE_END_INSET);
+  if (!notes.length) return [];
+  const onsets: number[] = [];
+  let t = 0;
+  for (const n of notes) {
+    onsets.push(t);
+    t += noteQuarters(n);
   }
-  return xs;
+  const totalQ = t || 1;
+  // Notes sit on their beat. Each note also gets a minimum gap, so a dense measure
+  // compresses evenly and still fits.
+  const minGap = NOTE_MIN_GAP;
+  const beatPx = (justify - minGap * notes.length) / totalQ;
+  return onsets.map((on) => xStart + minGap / 2 + on * Math.max(beatPx, 0));
 }
 
 /** Vertical lines and repeat dots, drawn with the same geometry as the VexFlow staff. */
@@ -433,6 +436,8 @@ function clefWidth(clef: string, size: number): number {
 const NOTE_GAP = 12;
 /** Space kept before each measure's right barline. VexFlow reserves 22 px (12 + 10). */
 const NOTE_END_INSET = 22;
+/** Minimum horizontal space per note, so dense measures still fit. */
+const NOTE_MIN_GAP = 14;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
