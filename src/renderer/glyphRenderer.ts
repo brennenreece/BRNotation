@@ -200,7 +200,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, tabOnlyMinGaps(measure, score.tuning, tabSize));
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -250,7 +250,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled));
+    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize));
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -267,7 +267,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, measureMinGaps(measure, score.tuning, tabSize, true, headScale, glyphSize));
       const tabHeightPx = (numStrings - 1) * tabSpacing;
       drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
       if (measureInLine === 0 && measure.startBarline === "repeat-begin") {
@@ -290,17 +290,51 @@ export function renderGlyphScore(
  * the last note keeps the end-padding inset (VexFlow Stave.defaultPadding).
  */
 /** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
-function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean): number[] | undefined {
-  return coupled ? noteMinGaps(measure.notes, tuning, tabSize) : undefined;
+function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number): number[] {
+  return noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size);
 }
 
-/** Minimum horizontal gap each note needs so its widest tab label clears the next note. */
-function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number): number[] {
-  return notes.map((note) => {
+/**
+ * Minimum centre-to-centre gap each note needs. In tab mode it clears the widest tab label;
+ * for any note with an accidental it also reserves room for the accidental to the left of its head.
+ */
+function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, headScale: number, size: number): number[] {
+  const headHalf = (size * 0.3 * headScale) / 2;
+  return notes.map((note, i) => {
+    let gap = NOTE_MIN_GAP;
+    if (tabSize > 0) {
+      const labels = note.isRest ? [] : tabPositionsFor(note, tuning).map((p) => String(p.fret));
+      const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
+      gap = Math.max(gap, widest * tabSize * 0.6 + 6);
+    }
+    const accWidth = accidentalWidth(note, size);
+    if (accWidth > 0) {
+      // Room for the accidental plus its clearance from the previous note's head.
+      gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size + headHalf * 2 + ACC_PREV_GAP * size);
+    }
+    return gap;
+  });
+}
+
+/** Tab-only blocks draw no staff, so they only need room for the tab labels. */
+function tabOnlyMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number): number[] {
+  return measure.notes.map((note) => {
     const labels = note.isRest ? [] : tabPositionsFor(note, tuning).map((p) => String(p.fret));
     const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
     return Math.max(NOTE_MIN_GAP, widest * tabSize * 0.6 + 6);
   });
+}
+
+/** Widest accidental on a note, or 0 when it has none. Accidental advances are Bravura em widths. */
+function accidentalWidth(note: ScoreNote, size: number): number {
+  if (note.isRest || !note.pitches) return 0;
+  let widest = 0;
+  for (const p of note.pitches) {
+    if (!p.accidental) continue;
+    const em = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
+    widest = Math.max(widest, em * size);
+  }
+  return widest;
 }
 
 function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?: number[]): number[] {
@@ -465,6 +499,10 @@ const NOTE_GAP = 12;
 const NOTE_END_INSET = 22;
 /** Minimum horizontal space per note, so dense measures still fit. */
 const NOTE_MIN_GAP = 14;
+/** Bravura accidental advance widths in em, and the clearances used around them. */
+const ACC_EM = { sharp: 0.249, flat: 0.226, natural: 0.168 };
+const ACC_HEAD_GAP = 0.03;
+const ACC_PREV_GAP = 0.06;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
@@ -526,7 +564,8 @@ function drawTabMeasure(
   size: number,
   xPos: number,
   measureWidth: number,
-  numberOffset = 0
+  numberOffset = 0,
+  minGaps?: number[]
 ): void {
   const stroke = "stroke: var(--text-normal, #000)";
   const tabBottom = tabY0 + (numStrings - 1) * tabSpacing;
@@ -541,7 +580,7 @@ function drawTabMeasure(
 
   if (!measure.notes.length) return;
   // Same note positions as the staff, so each fret number sits under its notehead.
-  const centres = noteCentres(measure.notes, xStart, width, noteMinGaps(measure.notes, tuning, size));
+  const centres = noteCentres(measure.notes, xStart, width, minGaps);
   measure.notes.forEach((note, i) => {
     const x = centres[i];
     const positions = tabPositionsFor(note, tuning);
@@ -876,7 +915,9 @@ function drawNote(
         p.accidental.includes("#") ? G.accidentalSharp
         : p.accidental.includes("b") ? G.accidentalFlat
         : G.accidentalNatural;
-      glyph(svg, acc, x - headW - size * 0.25, yHead, size, family);
+      const accEm = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
+      // Right edge sits a small clearance left of the notehead's left edge.
+      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accEm * size, yHead, size, family);
     }
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
   }
