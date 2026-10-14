@@ -81,7 +81,8 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `show:` | fretboard | `degrees` (default) or `notes`. |
 | `style:` | chord, fretboard | Dot style for the whole diagram. See [Diagram styles](#diagram-styles). |
 | `color:` | chord, fretboard | Named colour for all dots: `accent`, `red`, `green`, `blue`, `orange`, `purple`, or `muted`. |
-| `notes:` | fretboard | Notes to draw, one by one, as `fret/string`. See [Entering notes one by one](#entering-notes-one-by-one). |
+| `notes:` | fretboard | Notes to draw, one by one, as `fret/string`. A `-` between two notes draws a line joining them. See [Entering notes one by one](#entering-notes-one-by-one). |
+| `line:` | fretboard | Width in pixels of the lines joining linked notes, from 1 to 10. Default 1. |
 
 ### Comments and titles
 
@@ -612,6 +613,18 @@ notes: 5/6{root} 8/6 5/5{square,red} 7/5=R 5/4{ghost}
 ```
 
 Notes can be listed in any order, and they can go anywhere on the neck. The `root:` setting still decides which dot is the root, so `{root}` is only needed to force a different dot style. Lines that fail to read appear as errors under the block.
+
+To connect two notes with a line, put a `-` between them. The line joins the centres of the two dots and is drawn underneath the dots, so it never covers the labels. Use `line:` to change its thickness in pixels (default 1):
+
+```brnotation
+type: fretboard
+title: Shape with connections
+root: A
+line: 2
+notes: 3/4=1 - 2/3=3 - 1/2=5 - 1/1=1
+```
+
+A `-` only links the note before it to the note after it, so a chain of `-` draws a connected path. Lines between notes are drawn only where you write `-`.
 
 ---
 

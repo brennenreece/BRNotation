@@ -74,6 +74,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let dotStyle: DiagramDotStyle | undefined = undefined;
   let dotColor: DiagramColor | undefined = undefined;
   let customNotes: DiagramNote[] | undefined = undefined;
+  let lineWidth: number | undefined = undefined;
 
   // Check directive headers
   const contentLines: string[] = [];
@@ -108,10 +109,32 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
     if (lower.startsWith("notes:")) {
       customNotes = [];
+      // A standalone "-" links the note before it to the note after it
+      let linkNext = false;
       for (const token of trimmed.slice(6).trim().split(/\s+/).filter(Boolean)) {
+        if (token === "-") {
+          if (customNotes.length === 0) errors.push(`A "-" in notes: needs a note before it.`);
+          else linkNext = true;
+          continue;
+        }
         const note = parseDiagramNote(token);
-        if (note) customNotes.push(note);
-        else errors.push(`Could not read note "${token}". Use fret/string, such as 5/6 or 7/5{root}=R.`);
+        if (note) {
+          if (linkNext) note.linkFromPrevious = true;
+          customNotes.push(note);
+          linkNext = false;
+        } else {
+          errors.push(`Could not read note "${token}". Use fret/string, such as 5/6 or 7/5{root}=R.`);
+        }
+      }
+      if (linkNext) errors.push(`A "-" in notes: needs a note after it.`);
+      continue;
+    }
+    if (lower.startsWith("line:")) {
+      const n = Number(trimmed.slice(5).trim());
+      if (Number.isInteger(n) && n >= 1 && n <= 10) {
+        lineWidth = n;
+      } else {
+        errors.push(`Unknown line width "${trimmed.slice(5).trim()}". Use a whole number from 1 to 10.`);
       }
       continue;
     }
@@ -325,6 +348,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       dotStyle,
       dotColor,
       customPositions: customNotes,
+      lineWidth,
     };
     return { mode, rawText, fretboardScale, errors };
   } else {

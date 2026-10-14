@@ -247,6 +247,11 @@
   stroke-width: var(--br-diagram-line-width);
 }
 
+.br-diagram-link {
+  stroke: var(--br-diagram-line-color);
+  stroke-linecap: round;
+}
+
 .br-diagram-nut {
   stroke: var(--br-diagram-line-color);
   stroke-width: var(--br-diagram-nut-width);

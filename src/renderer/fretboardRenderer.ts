@@ -440,14 +440,33 @@ function renderCustomNotes(
 ): void {
   const svgNS = "http://www.w3.org/2000/svg";
   const rootPc = noteToMidi(`${data.root}4`) % 12;
-  for (const note of data.customPositions ?? []) {
-    // Tab numbering: string 1 = high E. Tuning index 0 = low E, so invert.
-    if (note.str < 1 || note.str > numStrings || note.fret < 0) continue;
+
+  // Position of each valid note, in the same order as customPositions
+  const placed = (data.customPositions ?? []).map((note) => {
     const stringIndex = numStrings - note.str;
     const displayIndex = numStrings - 1 - stringIndex;
-    const y = padTop + displayIndex * stringSpacing;
     const x = note.fret === 0 ? padLeft - dotRadius - 4 : padLeft + (note.fret - minFret) * fretSpacing - fretSpacing / 2;
+    return { note, stringIndex, x, y: padTop + displayIndex * stringSpacing };
+  });
+  const valid = placed.filter((p) => p.note.str >= 1 && p.note.str <= numStrings && p.note.fret >= 0);
 
+  // Links are drawn first so the dots and their labels sit on top of them
+  const linkWidth = data.lineWidth ?? 1;
+  for (let i = 1; i < valid.length; i++) {
+    if (!valid[i].note.linkFromPrevious) continue;
+    const from = valid[i - 1];
+    const to = valid[i];
+    const link = document.createElementNS(svgNS, "line");
+    link.setAttribute("x1", `${from.x}`);
+    link.setAttribute("y1", `${from.y}`);
+    link.setAttribute("x2", `${to.x}`);
+    link.setAttribute("y2", `${to.y}`);
+    link.setAttribute("stroke-width", `${linkWidth}`);
+    link.classList.add("br-diagram-link");
+    svg.appendChild(link);
+  }
+
+  for (const { note, stringIndex, x, y } of valid) {
     const pc = ((stringFretToMidi(tuning[stringIndex], note.fret) % 12) + 12) % 12;
     const isRoot = pc === rootPc;
 

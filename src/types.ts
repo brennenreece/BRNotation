@@ -140,6 +140,8 @@ export interface DiagramNote {
   str: number;
   fret: number;
   label?: string;
+  /** True when a `-` in `notes:` joins this note to the one before it. */
+  linkFromPrevious?: boolean;
   /** `root` forces the root dot style; other values override the block's dot style. */
   style?: DiagramDotStyle | "root";
   color?: DiagramColor;
@@ -157,6 +159,8 @@ export interface FretboardScaleData {
   dotColor?: DiagramColor;
   /** Notes entered one by one with `notes:`. When set, these replace the scale's automatic dots. */
   customPositions?: DiagramNote[];
+  /** Width in pixels of the lines joining `notes:` linked with `-`. Default 1. */
+  lineWidth?: number;
 }
 
 export interface ParsedBlock {
