@@ -79,16 +79,24 @@ const CHORD_BOX_FRET_SPACING = 28;
 export function renderChordBoxes(
   containerEl: HTMLElement,
   boxes: ChordDiagramData[],
-  columns?: number
+  columns?: number,
+  size?: number
 ): void {
   containerEl.empty();
-  if (boxes.length <= 1 && !columns) {
+  if (boxes.length <= 1 && !columns && !size) {
     renderChordDiagram(containerEl, boxes[0]);
     return;
   }
   const cols = Math.max(1, Math.min(columns ?? boxes.length, boxes.length));
   const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
   grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  if (size) {
+    // Each box gets the width it would have in a row of `size` boxes, so
+    // the box size stays the same whatever `columns:` is set to.
+    const colGap = 16;
+    grid.style.gridTemplateColumns = `repeat(${cols}, calc((100% - ${(size - 1) * colGap}px) / ${size}))`;
+    grid.style.justifyContent = "start";
+  }
   for (const box of boxes) {
     const cell = grid.createDiv({ cls: "br-chord-box-cell" });
     renderChordDiagram(cell, box);

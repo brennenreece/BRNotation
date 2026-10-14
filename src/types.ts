@@ -166,6 +166,8 @@ export interface ParsedBlock {
   /** Chord block with several boxes, laid out in rows of `columns`. */
   chordDiagrams?: ChordDiagramData[];
   chordColumns?: number;
+  /** Boxes across the pane that one box is sized for (`size:` in the block). */
+  chordSize?: number;
   chordFont?: string;
   fretboardScale?: FretboardScaleData;
   errors?: string[];

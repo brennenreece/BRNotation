@@ -452,6 +452,19 @@ frets: 0 2 0 1 0 0
 
 `fingers:` and `base-fret:` belong to the box above them. Put them after that box's `frets:` line.
 
+Use `size:` to set how big each box is, as the number of boxes that would fit across the pane. `size: 5` is the size of a box in a row of five, and `size: 3` boxes are larger. `columns:` still sets how many boxes sit in each row, so boxes keep the same size when you change `columns:`. Without `size:`, boxes fill the row width.
+
+```brnotation
+columns: 3
+size: 5
+name: C
+frets: x 3 2 0 1 0
+name: Am
+frets: x 0 2 2 1 0
+name: F
+frets: 1 3 3 2 1 1
+```
+
 Use `chord-font:` to set the font for the chord names above the boxes in one block. Options: `system`, `julesjazz`, `musejazz`. Without it, the block uses the **Chord symbol font** setting. The `chord-font:` option changes only chord box names, not chord symbols in staff or chord grid blocks.
 
 ```brnotation
@@ -475,7 +488,7 @@ name: C
 frets: x 3 2 0 1 0
 ```
 
-A `columns:` value that is not a whole number, a `chord-font:` value that is not one of the options above, or a `fret-count:` value outside 3 to 7 shows an error above the box.
+A `size:` value outside 1 to 8, a `columns:` value that is not a whole number, a `chord-font:` value that is not one of the options above, or a `fret-count:` value outside 3 to 7 shows an error above the box.
 
 Use `tuning:` to draw a chord for another tuning:
 

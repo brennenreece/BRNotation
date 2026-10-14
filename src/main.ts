@@ -213,7 +213,7 @@ export default class BRNotationPlugin extends Plugin {
           ...box,
           dotStyle: box.dotStyle ?? this.settings.diagramStyle,
         }));
-        renderChordBoxes(body, boxes, parsed.chordColumns);
+        renderChordBoxes(body, boxes, parsed.chordColumns, parsed.chordSize);
         const fontKey = parsed.chordFont ?? this.settings.chordFont;
         const fontFamily = CHORD_FONT_OPTIONS[fontKey]?.family ?? CHORD_FONT_OPTIONS.system.family;
         body.style.setProperty("--br-chord-box-font", fontFamily);

@@ -55,6 +55,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let chordColumns: number | undefined = undefined;
   let chordFont: string | undefined = undefined;
   let chordFretCount: number | undefined = undefined;
+  let chordSize: number | undefined = undefined;
   // Completed chord boxes. A `name:` line after a box's `frets:` line starts the next box.
   const rawChordBoxes: RawChordBox[] = [];
   let pendingChord: RawChordBox | null = null;
@@ -210,6 +211,13 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       else errors.push(`Invalid columns value "${trimmed.slice(trimmed.indexOf(":") + 1).trim()}". Use a whole number, e.g. columns: 4.`);
       continue;
     }
+    if (lower.startsWith("size:")) {
+      const raw = trimmed.slice(5).trim();
+      const num = parseInt(raw, 10);
+      if (/^\d+$/.test(raw) && num >= 1 && num <= 8) chordSize = num;
+      else errors.push(`Invalid size "${raw}". Use a whole number from 1 to 8 (boxes across the pane), e.g. size: 5.`);
+      continue;
+    }
     if (lower.startsWith("fret-count:") || lower.startsWith("frets-shown:")) {
       const raw = trimmed.slice(trimmed.indexOf(":") + 1).trim();
       const num = parseInt(raw, 10);
@@ -284,7 +292,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       dotColor,
       numFrets: chordFretCount,
     }));
-    return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordFont, errors };
+    return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordSize, chordFont, errors };
   } else if (mode === "fretboard") {
     const fretboardScale: FretboardScaleData = {
       title,
