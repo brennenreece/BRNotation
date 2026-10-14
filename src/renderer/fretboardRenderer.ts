@@ -303,11 +303,13 @@ export function renderFretboardScale(
   const boardWidth = containerWidth - padLeft - padRight;
   const boardHeight = height - padTop - padBottom;
   const stringSpacing = boardHeight / (numStrings - 1);
-  const fretSpacing = boardWidth / (totalFrets - 1);
+  // With a nut (minFret 0) the board starts at the nut; otherwise the first fret is a full cell from the left edge.
+  const fretSpacing = minFret === 0 ? boardWidth / (totalFrets - 1) : boardWidth / totalFrets;
+  const wireX = (f: number) => (minFret === 0 ? padLeft + (f - minFret) * fretSpacing : padLeft + (f - minFret + 1) * fretSpacing);
 
   // Fret lines (vertical)
   for (let f = minFret; f <= maxFret; f++) {
-    const x = padLeft + (f - minFret) * fretSpacing;
+    const x = wireX(f);
     const fLine = document.createElementNS(svgNS, "line");
     fLine.setAttribute("x1", `${x}`);
     fLine.setAttribute("y1", `${padTop}`);
@@ -367,7 +369,7 @@ export function renderFretboardScale(
   const dotRadius = dotRadiusFor(stringSpacing, fretSpacing);
 
   if (data.customPositions && data.customPositions.length > 0) {
-    renderCustomNotes(svg, data, numStrings, tuning, minFret, padLeft, fretSpacing, stringSpacing, padTop, dotRadius, options);
+    renderCustomNotes(svg, data, numStrings, tuning, minFret, padLeft, fretSpacing, stringSpacing, padTop, dotRadius, wireX, options);
     wrapper.appendChild(svg);
     return wrapper;
   }
@@ -384,7 +386,7 @@ export function renderFretboardScale(
 
       if (scaleDegreeMap[pc]) {
         const { degree, isRoot } = scaleDegreeMap[pc];
-        const x = f === 0 ? padLeft - dotRadius - 4 : padLeft + (f - minFret) * fretSpacing - fretSpacing / 2;
+        const x = f === 0 ? padLeft - dotRadius - 4 : wireX(f) - fretSpacing / 2;
 
         const g = document.createElementNS(svgNS, "g");
         g.classList.add("br-diagram-marker");
@@ -436,6 +438,7 @@ function renderCustomNotes(
   stringSpacing: number,
   padTop: number,
   dotRadius: number,
+  wireX: (fret: number) => number,
   options: { onNoteClick?: (stringIndex: number, fret: number) => void }
 ): void {
   const svgNS = "http://www.w3.org/2000/svg";
@@ -444,7 +447,7 @@ function renderCustomNotes(
   const placed = (data.customPositions ?? []).map((note) => {
     const stringIndex = numStrings - note.str;
     const displayIndex = numStrings - 1 - stringIndex;
-    const x = note.fret === 0 ? padLeft - dotRadius - 4 : padLeft + (note.fret - minFret) * fretSpacing - fretSpacing / 2;
+    const x = note.fret === 0 ? padLeft - dotRadius - 4 : wireX(note.fret) - fretSpacing / 2;
     return { note, stringIndex, x, y: padTop + displayIndex * stringSpacing };
   });
   const valid = placed.filter((p) => p.note.str >= 1 && p.note.str <= numStrings && p.note.fret >= 0);
