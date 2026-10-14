@@ -124,6 +124,8 @@ export interface ChordDiagramData {
   frets: (number | "x")[]; // index 0 is lowest string (E2) or highest? We will standardize: 0 is lowest string (6th string)
   fingers?: (number | string | null)[];
   baseFret?: number; // 1-based base fret
+  /** Row this box sits in when the block uses `row:` lines. */
+  row?: number;
   /** Number of fret spaces drawn (default 5). Set by `fret-count:` in the block. */
   numFrets?: number;
   barre?: {
@@ -168,6 +170,8 @@ export interface ParsedBlock {
   chordColumns?: number;
   /** Boxes across the pane that one box is sized for (`size:` in the block). */
   chordSize?: number;
+  /** Horizontal alignment of the chord box columns and boxes (`align:`). */
+  chordAlign?: "left" | "center" | "right";
   chordFont?: string;
   fretboardScale?: FretboardScaleData;
   errors?: string[];

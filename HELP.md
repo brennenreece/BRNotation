@@ -465,6 +465,34 @@ name: F
 frets: 1 3 3 2 1 1
 ```
 
+Use `row:` on its own line to start a new row. The boxes after it go in that row, whatever `columns:` says, so you can choose which boxes share a row. Without `row:`, `columns:` wraps the boxes into rows.
+
+```brnotation
+align: center
+name: C
+frets: x 3 2 0 1 0
+name: Am
+frets: x 0 2 2 1 0
+row:
+name: F
+frets: 1 3 3 2 1 1
+name: G
+frets: 3 2 0 0 0 3
+```
+
+Use `align:` to place the boxes left, center, or right. `align: center` centers each column in the block and centers the boxes inside their columns. `align: left` is the default.
+
+```brnotation
+columns: 3
+align: center
+name: C
+frets: x 3 2 0 1 0
+name: Am
+frets: x 0 2 2 1 0
+name: F
+frets: 1 3 3 2 1 1
+```
+
 Use `chord-font:` to set the font for the chord names above the boxes in one block. Options: `system`, `julesjazz`, `musejazz`. Without it, the block uses the **Chord symbol font** setting. The `chord-font:` option changes only chord box names, not chord symbols in staff or chord grid blocks.
 
 ```brnotation
@@ -488,7 +516,7 @@ name: C
 frets: x 3 2 0 1 0
 ```
 
-A `size:` value outside 1 to 8, a `columns:` value that is not a whole number, a `chord-font:` value that is not one of the options above, or a `fret-count:` value outside 3 to 7 shows an error above the box.
+A `size:` value outside 1 to 8, a `columns:` value that is not a whole number, an `align:` value that is not left, center, or right, a `chord-font:` value that is not one of the options above, or a `fret-count:` value outside 3 to 7 shows an error above the box.
 
 Use `tuning:` to draw a chord for another tuning:
 

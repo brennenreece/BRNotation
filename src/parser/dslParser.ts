@@ -27,6 +27,8 @@ interface RawChordBox {
   frets: (number | "x")[];
   fingers: (string | number | null)[];
   baseFret: number;
+  /** Index of the row this box belongs to; a `row:` line starts a new row. */
+  row: number;
 }
 
 export function parseBRNotationBlock(rawText: string): ParsedBlock {
@@ -56,9 +58,11 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let chordFont: string | undefined = undefined;
   let chordFretCount: number | undefined = undefined;
   let chordSize: number | undefined = undefined;
+  let chordAlign: "left" | "center" | "right" | undefined = undefined;
   // Completed chord boxes. A `name:` line after a box's `frets:` line starts the next box.
   const rawChordBoxes: RawChordBox[] = [];
   let pendingChord: RawChordBox | null = null;
+  let chordRow = 0;
   const CHORD_FONT_KEYS = ["system", "julesjazz", "musejazz"];
 
   // Fretboard scale fields
@@ -179,6 +183,15 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
 
     // Chord-specific headers
+    if (lower === "row:" || lower.startsWith("row:")) {
+      // Boxes after a row: line start a new row. Empty rows are skipped.
+      if (pendingChord) {
+        rawChordBoxes.push(pendingChord);
+        pendingChord = null;
+      }
+      if (rawChordBoxes.some((b) => b.row === chordRow)) chordRow++;
+      continue;
+    }
     if (lower.startsWith("name:") || lower.startsWith("chord:")) {
       // A new name starts a new box once the previous box has its frets
       if (pendingChord) {
@@ -195,7 +208,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     if (lower.startsWith("frets:")) {
       const fStr = trimmed.slice(6).trim();
       chordFrets = fStr.split(/\s+/).map((f) => (f.toLowerCase() === "x" ? "x" : parseInt(f, 10)));
-      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, baseFret };
+      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, baseFret, row: chordRow };
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
@@ -216,6 +229,12 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       const num = parseInt(raw, 10);
       if (/^\d+$/.test(raw) && num >= 1 && num <= 8) chordSize = num;
       else errors.push(`Invalid size "${raw}". Use a whole number from 1 to 8 (boxes across the pane), e.g. size: 5.`);
+      continue;
+    }
+    if (lower.startsWith("align:")) {
+      const raw = trimmed.slice(6).trim().toLowerCase();
+      if (raw === "left" || raw === "center" || raw === "right") chordAlign = raw;
+      else errors.push(`Invalid align "${raw}". Use left, center, or right, e.g. align: center.`);
       continue;
     }
     if (lower.startsWith("fret-count:") || lower.startsWith("frets-shown:")) {
@@ -281,7 +300,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
     if (pendingChord) rawChordBoxes.push(pendingChord);
-    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, baseFret });
+    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, baseFret, row: chordRow });
     const chordBoxes: ChordDiagramData[] = rawChordBoxes.map((box) => ({
       name: box.name,
       tuning,
@@ -291,8 +310,9 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       dotStyle,
       dotColor,
       numFrets: chordFretCount,
+      row: box.row,
     }));
-    return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordSize, chordFont, errors };
+    return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordSize, chordAlign, chordFont, errors };
   } else if (mode === "fretboard") {
     const fretboardScale: FretboardScaleData = {
       title,

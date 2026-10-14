@@ -80,27 +80,43 @@ export function renderChordBoxes(
   containerEl: HTMLElement,
   boxes: ChordDiagramData[],
   columns?: number,
-  size?: number
+  size?: number,
+  align?: "left" | "center" | "right"
 ): void {
   containerEl.empty();
-  if (boxes.length <= 1 && !columns && !size) {
+  if (boxes.length <= 1 && !columns && !size && !align) {
     renderChordDiagram(containerEl, boxes[0]);
     return;
   }
-  const cols = Math.max(1, Math.min(columns ?? boxes.length, boxes.length));
-  const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
-  grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-  if (size) {
-    // Each box gets the width it would have in a row of `size` boxes, so
-    // the box size stays the same whatever `columns:` is set to.
-    const colGap = 16;
-    grid.style.gridTemplateColumns = `repeat(${cols}, calc((100% - ${(size - 1) * colGap}px) / ${size}))`;
-    grid.style.justifyContent = "start";
+  // Boxes after a `row:` line share a row. Without `row:`, `columns:` wraps them.
+  const rowIndexes = [...new Set(boxes.map((b) => b.row ?? 0))].sort((a, b) => a - b);
+  const rows = rowIndexes.map((r) => boxes.filter((b) => (b.row ?? 0) === r));
+  const justify = { left: "start", center: "center", right: "end" }[align ?? "left"];
+  const groups = rows.length > 1 ? rows : chunk(boxes, Math.max(1, Math.min(columns ?? boxes.length, boxes.length)));
+  for (const group of groups) {
+    const cols = Math.max(1, Math.min(columns ?? group.length, group.length));
+    const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
+    grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+    if (size) {
+      // Each box gets the width it would have in a row of `size` boxes, so
+      // the box size stays the same whatever `columns:` is set to.
+      const colGap = 16;
+      grid.style.gridTemplateColumns = `repeat(${cols}, calc((100% - ${(size - 1) * colGap}px) / ${size}))`;
+    }
+    // Columns and the boxes inside them line up with the chosen alignment.
+    grid.style.justifyContent = justify;
+    for (const box of group) {
+      const cell = grid.createDiv({ cls: "br-chord-box-cell" });
+      cell.style.justifySelf = justify;
+      renderChordDiagram(cell, box);
+    }
   }
-  for (const box of boxes) {
-    const cell = grid.createDiv({ cls: "br-chord-box-cell" });
-    renderChordDiagram(cell, box);
-  }
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
 }
 
 export function renderChordDiagram(
