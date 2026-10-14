@@ -423,6 +423,8 @@ const TIME_SIG_PADDING = 15;
 
 /** Advance width of each time-signature digit in em, measured from Bravura. */
 const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.436, 0.434];
+/** Baseline offset (em) that centres a digit's measured ink vertically on its anchor. */
+const TIME_DIGIT_CENTRE_EM = 0.0075;
 
 /** Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves. */
 function drawTimeSignature(
@@ -449,9 +451,10 @@ function drawTimeSignature(
       cx += TIME_DIGIT_EM[d] * size;
     }
   };
-  // The numerator sits on the top two staff spaces, the denominator on the bottom two.
-  drawNumber(num, y0 + 2 * ls);
-  drawNumber(den, y0 + 4 * ls);
+  // Each digit's ink is centred on its half of the staff (ink spans about 0.26 em above
+  // and 0.245 em below the baseline, so the visual centre sits roughly on the baseline).
+  drawNumber(num, y0 + ls + TIME_DIGIT_CENTRE_EM * size);
+  drawNumber(den, y0 + 3 * ls + TIME_DIGIT_CENTRE_EM * size);
 }
 
 /**
