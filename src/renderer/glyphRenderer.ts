@@ -380,7 +380,9 @@ function layoutMeasureNotes(
 /** Quarter-note length of a note, including dots. */
 function noteQuarters(note: ScoreNote): number {
   const base: Record<string, number> = { w: 4, h: 2, q: 1, "8": 0.5, "16": 0.25, "32": 0.125 };
-  return (base[note.duration] ?? 1) * (2 - 1 / Math.pow(2, note.dots ?? 0));
+  const len = base[note.duration] ?? 1;
+  // A triplet note takes two-thirds of its written value.
+  return (note.tuplet ? (2 / 3) * len : len * (2 - 1 / Math.pow(2, note.dots ?? 0)));
 }
 
 /** Number of beams (flags) a note needs. Quarter notes and longer have none. */
@@ -404,7 +406,7 @@ function beatQuarters(timeSig: string): { beat: number; compound: boolean } {
 
 /**
  * Splits a measure into beam groups of two or more notes. Eighths group every two beats
- * (every beat in compound meters), and 16ths and 32nds group every beat. Rests and longer
+ * (every beat in compound meters), triplets and 16ths and 32nds group every beat. Rests and longer
  * notes break a group. Single notes keep their flags.
  */
 function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
@@ -423,9 +425,10 @@ function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
     if (count === 0) {
       flush();
     } else {
-      const unit = count === 1 ? beat * (compound ? 1 : 2) : beat;
-      // A group is one unit of one note value, so 16ths and 8ths never share a beam.
-      const key = `${note.duration}:${Math.floor((pos + 1e-9) / unit)}`;
+      // Triplets group every beat like 16ths. Plain 8ths group every two beats (every beat in compound meters).
+      const unit = count === 1 && !note.tuplet ? beat * (compound ? 1 : 2) : beat;
+      // A group is one unit of one note value and kind, so 16ths, 8ths, and triplets never share a beam.
+      const key = `${note.duration}${note.tuplet ? "t" : ""}:${Math.floor((pos + 1e-9) / unit)}`;
       if (key !== curKey) flush();
       curKey = key;
       cur.push(i);

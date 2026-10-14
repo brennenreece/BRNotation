@@ -23,6 +23,7 @@ export interface ScoreNote {
   duration: DurationType;
   isRest: boolean;
   dots: number;
+  tuplet?: boolean; // triplet: three notes in the time of two
   tied?: boolean;
   pitches?: NotePitch[]; // for standard notation
   tabPositions?: TabPosition[]; // for tablature

@@ -532,7 +532,7 @@ function parseNoteToken(
 
   // Single standard pitch: e.g. c4/q, f#4/8, bb3/h., g4/q~
   // Pitch with optional fret/string in parens, optional legacy /dur suffix, optional tie.
-  const noteMatch = token.match(/^([a-gA-G])([#bn]?)(-?\d+)(?:\((\d+)\/(\d+)\))?(?:\/([whq8]|16|32)(\.?))?(~?)$/i);
+  const noteMatch = token.match(/^([a-gA-G])([#bn]?)(-?\d+)(?:\((\d+)\/(\d+)\))?(?:\/([whq8]|16|32)(\.?)(t?))?(~?)$/i);
   if (noteMatch) {
     const step = noteMatch[1].toLowerCase() as any;
     const accidental = (noteMatch[2] || undefined) as any;
@@ -541,7 +541,8 @@ function parseNoteToken(
     const tabStr = noteMatch[5] ? parseInt(noteMatch[5], 10) : undefined;
     const duration = noteMatch[6] ? (noteMatch[6].toLowerCase() as DurationType) : defaultDuration;
     const dots = noteMatch[7] === "." ? 1 : 0;
-    const tied = noteMatch[8] === "~";
+    const tuplet = noteMatch[8] === "t" || noteMatch[8] === "T";
+    const tied = noteMatch[9] === "~";
 
     const pitches: NotePitch[] = [{ step, octave, accidental }];
     const tabPositions: TabPosition[] | undefined =
@@ -552,6 +553,7 @@ function parseNoteToken(
       duration,
       isRest: false,
       dots,
+      ...(tuplet ? { tuplet: true } : {}),
       tied,
       pitches,
       tabPositions,
