@@ -554,7 +554,7 @@ Open **Settings → BRNotation** to change these options.
 | Audio auditioning and playback | On | Plays a note when you click a key, fret, or note in the editor. |
 | Default clef | Treble | Clef used when a notation block does not set `clef:`. |
 | Maximum measures per line | 4 | Upper limit on measures per staff line (slider range 1 to 8). If there are fewer measures, they fill the line. |
-| Tab line spacing | 16 | Vertical space between tab strings (slider range 10 to 24). |
+| Tab line spacing | 16 | Vertical space between tab strings in tab-only blocks (slider range 10 to 24). Coupled staff and tab use the staff line spacing, so the two rows share one grid. |
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
 | Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |

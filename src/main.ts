@@ -307,7 +307,7 @@ class BRNotationSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Tab line spacing")
-      .setDesc("Vertical distance in pixels between tablature string lines. Default is 16.")
+      .setDesc("Vertical distance in pixels between tablature string lines in tab-only blocks. Coupled staff and tab always use the staff line spacing. Default is 16.")
       .addSlider((slider) => {
         slider
           .setLimits(10, 24, 1)
