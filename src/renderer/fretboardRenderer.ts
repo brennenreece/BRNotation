@@ -308,6 +308,16 @@ export function renderFretboardScale(
   const wireX = (f: number) => (minFret === 0 ? padLeft + (f - minFret) * fretSpacing : padLeft + (f - minFret + 1) * fretSpacing);
 
   // Fret lines (vertical)
+  if (minFret !== 0) {
+    // Left boundary of the first cell, since no fret wire sits there
+    const edge = document.createElementNS(svgNS, "line");
+    edge.setAttribute("x1", `${padLeft}`);
+    edge.setAttribute("y1", `${padTop}`);
+    edge.setAttribute("x2", `${padLeft}`);
+    edge.setAttribute("y2", `${padTop + boardHeight}`);
+    edge.classList.add("br-diagram-line");
+    svg.appendChild(edge);
+  }
   for (let f = minFret; f <= maxFret; f++) {
     const x = wireX(f);
     const fLine = document.createElementNS(svgNS, "line");
