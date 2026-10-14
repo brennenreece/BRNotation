@@ -439,7 +439,6 @@ function renderCustomNotes(
   options: { onNoteClick?: (stringIndex: number, fret: number) => void }
 ): void {
   const svgNS = "http://www.w3.org/2000/svg";
-  const rootPc = noteToMidi(`${data.root}4`) % 12;
 
   // Position of each valid note, in the same order as customPositions
   const placed = (data.customPositions ?? []).map((note) => {
@@ -468,7 +467,7 @@ function renderCustomNotes(
 
   for (const { note, stringIndex, x, y } of valid) {
     const pc = ((stringFretToMidi(tuning[stringIndex], note.fret) % 12) + 12) % 12;
-    const isRoot = pc === rootPc;
+    const isRoot = note.style === "root";
 
     const g = document.createElementNS(svgNS, "g");
     g.classList.add("br-diagram-marker", isRoot ? "is-root" : "is-note");

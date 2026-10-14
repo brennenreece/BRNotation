@@ -612,7 +612,7 @@ style: outlined
 notes: 5/6{root} 8/6 5/5{square,red} 7/5=R 5/4{ghost}
 ```
 
-Notes can be listed in any order, and they can go anywhere on the neck. The `root:` setting still decides which dot is the root, so `{root}` is only needed to force a different dot style. Lines that fail to read appear as errors under the block.
+Notes can be listed in any order, and they can go anywhere on the neck. Dots are plain by default. The `root:` setting does not accent any dot, so use `{root}` on a note to accent it. Lines that fail to read appear as errors under the block.
 
 To connect two notes with a line, put a `-` between them. The line joins the centres of the two dots and is drawn underneath the dots, so it never covers the labels. Use `line:` to change its thickness in pixels (default 1):
 
