@@ -77,6 +77,7 @@ export interface ChordGridMeasure {
 export interface ChordGridScore {
   title?: string;
   timeSignature: string;
+  showTimeSignature?: boolean; // "time: 4/4 visible = false" hides the signature (default true)
   key?: string; // used for roman-numeral functions
   showFunctions: boolean; // "chord function = true"
   showMeasureNumbers: boolean; // "measure numbers = true"

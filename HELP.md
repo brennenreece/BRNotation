@@ -66,7 +66,7 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 |---|---|---|
 | `mode:` or `type:` | all | One of `notation`, `tab`, `coupled`, `chordgrid`, `chord`, `fretboard`. |
 | `title:` | notation, tab, coupled, chordgrid, fretboard | Title shown above the output. |
-| `time:` | notation, tab, coupled, chordgrid | Time signature, such as `4/4`, `3/4`, `6/8`. |
+| `time:` | notation, tab, coupled, chordgrid | Time signature, such as `4/4`, `3/4`, `6/8`. In chordgrid blocks, add `visible = false` after it (`time: 4/4 visible = false`) to hide the signature. |
 | `key:` | notation, coupled | Key signature, such as `C`, `G`, `Bb`, `F#m`. |
 | `clef:` | notation, coupled | `treble`, `bass`, or `alto`. Defaults to the setting in Settings. |
 | `glyphs:` | notation, coupled | `font` (default) draws the staff with the music font's glyphs (noteheads, clefs, flags, rests, accidentals). Coupled blocks also draw the tab in the same drawing. `vexflow` keeps VexFlow's built-in shapes. Tab-only blocks always use the font drawing, so their tab matches coupled tab. Beams in `font` mode group 8ths every two beats (every beat in compound meters like 6/8), triplets and 16ths and 32nds every beat. Rests and longer notes break a group, and groups never cross a barline. |
@@ -336,6 +336,15 @@ per-row: 4
 - Each measure shows one slash per beat of the time signature, so 4/4 gets four slashes and 3/4 gets three.
 - `per-row:` sets how many measures go on each line.
 - `time:` shows a stacked time signature (for example 4 over 4) at the start of each line. There is no clef.
+- `time: 4/4 visible = false` hides the time signature. The grid still uses 4/4 for the beat slashes.
+
+```brnotation
+type: chordgrid
+time: 3/4 visible = false
+per-row: 3
+
+| Am | Dm | E7 |
+```
 
 ```brnotation
 type: chordgrid

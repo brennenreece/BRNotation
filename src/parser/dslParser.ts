@@ -37,6 +37,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let mode: BlockMode = "notation";
   let title: string | undefined = undefined;
   let timeSignature = "4/4";
+  let timeSignatureVisible = true;
   let keySignature = "C";
   let clef: any = "treble";
   let tuningPreset = "standard";
@@ -121,7 +122,14 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       continue;
     }
     if (lower.startsWith("time:")) {
-      timeSignature = trimmed.slice(5).trim();
+      const timeValue = trimmed.slice(5).trim();
+      const visibleMatch = timeValue.match(/^(.*?)\s+visible\s*[=:]\s*(true|false)$/i);
+      if (visibleMatch) {
+        timeSignature = visibleMatch[1].trim();
+        timeSignatureVisible = visibleMatch[2].toLowerCase() !== "false";
+      } else {
+        timeSignature = timeValue;
+      }
       continue;
     }
     if (lower.startsWith("key:")) {
@@ -253,7 +261,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 
   // Process mode
   if (mode === "chordgrid") {
-    const chordGridScore = parseChordGrid(contentLines, title, timeSignature, measuresPerRow, gridKey, showFunctions, showMeasureNumbers);
+    const chordGridScore = parseChordGrid(contentLines, title, timeSignature, measuresPerRow, gridKey, showFunctions, showMeasureNumbers, timeSignatureVisible);
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
     if (pendingChord) rawChordBoxes.push(pendingChord);
@@ -322,7 +330,8 @@ function parseChordGrid(
   measuresPerRow: number,
   key: string | undefined,
   showFunctions: boolean,
-  showMeasureNumbers: boolean
+  showMeasureNumbers: boolean,
+  showTimeSignature: boolean
 ): ChordGridScore {
   const measures: ChordGridMeasure[] = [];
   let measureCount = 1;
@@ -369,6 +378,7 @@ function parseChordGrid(
   return {
     title,
     timeSignature,
+    showTimeSignature,
     key,
     showFunctions,
     showMeasureNumbers,

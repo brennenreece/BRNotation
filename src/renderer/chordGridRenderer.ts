@@ -114,7 +114,7 @@ export function renderChordGrid(
       const width = col === 0 ? firstWidth : baseWidth;
 
       const stave = new Stave(x, staffY, width);
-      if (row === 0 && col === 0) {
+      if (row === 0 && col === 0 && score.showTimeSignature !== false) {
         stave.addTimeSignature(score.timeSignature);
       }
       applyBarline(stave, measure);
