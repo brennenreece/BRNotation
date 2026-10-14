@@ -93,9 +93,11 @@ export function renderChordBoxes(
   const rows = rowIndexes.map((r) => boxes.filter((b) => (b.row ?? 0) === r));
   const justify = { left: "start", center: "center", right: "end" }[align ?? "left"];
   const groups = rows.length > 1 ? rows : chunk(boxes, Math.max(1, Math.min(columns ?? boxes.length, boxes.length)));
+  // Rows stack vertically inside one wrapper, so they don't sit side by side
+  const stack = containerEl.createDiv({ cls: "br-chord-box-stack" });
   for (const group of groups) {
     const cols = Math.max(1, Math.min(columns ?? group.length, group.length));
-    const grid = containerEl.createDiv({ cls: "br-chord-box-grid" });
+    const grid = stack.createDiv({ cls: "br-chord-box-grid" });
     grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
     if (size) {
       // Each box gets the width it would have in a row of `size` boxes, so
