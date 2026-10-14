@@ -69,7 +69,9 @@ function shapeFor(style: DiagramDotStyle | "root" | undefined): "circle" | "squa
   return "circle";
 }
 
-/** Render a vertical chord box diagram */
+/** Height in px of one fret space in a chord box. */
+const CHORD_BOX_FRET_SPACING = 28;
+
 /**
  * Renders one or more chord boxes in a grid with `columns` boxes per row.
  * A single box renders exactly as before.
@@ -106,7 +108,11 @@ export function renderChordDiagram(
   const baseFret = data.baseFret || 1;
 
   const width = options.width || 180;
-  const height = options.height || 220;
+  // Each fret has the same height, so fewer frets give a shorter box.
+  const padTop = 56;
+  const padBottom = 25;
+  const fretSpacing = CHORD_BOX_FRET_SPACING;
+  const height = options.height || padTop + numFrets * fretSpacing + padBottom;
 
   const svgNS = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(svgNS, "svg");
@@ -127,13 +133,10 @@ export function renderChordDiagram(
   // Diagram boundaries
   const padLeft = 35;
   const padRight = 35;
-  const padTop = 56;
-  const padBottom = 25;
 
   const gridWidth = width - padLeft - padRight;
-  const gridHeight = height - padTop - padBottom;
+  const gridHeight = numFrets * fretSpacing;
   const stringSpacing = gridWidth / (numStrings - 1);
-  const fretSpacing = gridHeight / numFrets;
 
   // Base fret indicator (e.g. "3fr")
   if (baseFret > 1) {

@@ -465,7 +465,7 @@ frets: x 0 2 0 2 0
 
 Chord box strings are drawn in black. Fret lines and the nut are black too.
 
-Use `fret-count:` to set how many fret spaces each box draws. The default is 5. Use a whole number from 3 to 7. It applies to every box in the block:
+Use `fret-count:` to set how many fret spaces each box draws. The default is 5. Use a whole number from 3 to 7. Every fret space is the same height, so a box with fewer frets is shorter and a box with more frets is taller. It applies to every box in the block:
 
 ```brnotation
 fret-count: 4
