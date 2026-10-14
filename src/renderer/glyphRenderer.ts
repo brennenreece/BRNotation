@@ -245,7 +245,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
+    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled));
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -284,9 +284,23 @@ export function renderGlyphScore(
  * Follows VexFlow's Formatter: each context takes softmax(ticks) of the justify width, and
  * the last note keeps the end-padding inset (VexFlow Stave.defaultPadding).
  */
-function noteCentres(notes: ScoreNote[], xStart: number, width: number): number[] {
-  const justify = Math.max(0, width - NOTE_END_INSET);
+/** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
+function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean): number[] | undefined {
+  return coupled ? noteMinGaps(measure.notes, tuning, tabSize) : undefined;
+}
+
+/** Minimum horizontal gap each note needs so its widest tab label clears the next note. */
+function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number): number[] {
+  return notes.map((note) => {
+    const labels = note.isRest ? [] : tabPositionsFor(note, tuning).map((p) => String(p.fret));
+    const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
+    return Math.max(NOTE_MIN_GAP, widest * tabSize * 0.6 + 6);
+  });
+}
+
+function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?: number[]): number[] {
   if (!notes.length) return [];
+  const justify = Math.max(0, width - NOTE_END_INSET);
   const onsets: number[] = [];
   let t = 0;
   for (const n of notes) {
@@ -294,11 +308,19 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number): number[
     t += noteQuarters(n);
   }
   const totalQ = t || 1;
-  // Notes sit on their beat. Each note also gets a minimum gap, so a dense measure
-  // compresses evenly and still fits.
-  const minGap = NOTE_MIN_GAP;
-  const beatPx = (justify - minGap * notes.length) / totalQ;
-  return onsets.map((on) => xStart + minGap / 2 + on * Math.max(beatPx, 0));
+  const pxPerQuarter = justify / totalQ;
+  // Place each note on its beat. If a note is closer to the previous one than its minimum gap,
+  // push it right so labels never overlap, and carry the shift forward.
+  const xs: number[] = [];
+  let prev = -Infinity;
+  for (let i = 0; i < notes.length; i++) {
+    const minGap = minGaps?.[i] ?? NOTE_MIN_GAP;
+    const beatX = xStart + onsets[i] * pxPerQuarter;
+    const x = i === 0 ? beatX : Math.max(beatX, prev + minGap);
+    xs.push(x);
+    prev = x;
+  }
+  return xs;
 }
 
 /** Vertical lines and repeat dots, drawn with the same geometry as the VexFlow staff. */
@@ -514,7 +536,7 @@ function drawTabMeasure(
 
   if (!measure.notes.length) return;
   // Same note positions as the staff, so each fret number sits under its notehead.
-  const centres = noteCentres(measure.notes, xStart, width);
+  const centres = noteCentres(measure.notes, xStart, width, noteMinGaps(measure.notes, tuning, size));
   measure.notes.forEach((note, i) => {
     const x = centres[i];
     const positions = tabPositionsFor(note, tuning);
@@ -578,7 +600,8 @@ function layoutMeasureNotes(
   size: number,
   lineSpacing: number,
   timeSig: string,
-  headScale: number
+  headScale: number,
+  minGaps?: number[]
 ): void {
   const notes = measure.notes;
   if (!notes.length) return;
@@ -586,7 +609,7 @@ function layoutMeasureNotes(
   const bottomY = y0 + 4 * lineSpacing;
   const middleY = bottomY - 2 * lineSpacing;
   const stemLen = 3.5 * lineSpacing;
-  const xs = noteCentres(notes, xStart, width);
+  const xs = noteCentres(notes, xStart, width, minGaps);
   const headYs = notes.map((note) =>
     note.isRest ? [] : (note.pitches ?? []).map((p) => bottomY - ((stepOf(p) - bottomStep) * lineSpacing) / 2)
   );
