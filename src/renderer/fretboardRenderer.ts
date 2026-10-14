@@ -132,7 +132,8 @@ export function renderChordDiagram(
   // Title / Chord Name
   const title = document.createElementNS(svgNS, "text");
   title.setAttribute("x", `${width / 2}`);
-  title.setAttribute("y", "22");
+  // Halfway between the top of the SVG and the nut, so the name sits close to the box.
+  title.setAttribute("y", "39");
   title.setAttribute("text-anchor", "middle");
   title.classList.add("br-diagram-title");
   title.textContent = data.name;
