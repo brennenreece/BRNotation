@@ -494,7 +494,7 @@ name: F
 frets: 1 3 3 2 1 1
 ```
 
-Use `chord-font:` to set the font for the chord names above the boxes in one block. Options: `system`, `julesjazz`, `musejazz`. Without it, the block uses the **Chord symbol font** setting. The `chord-font:` option changes only chord box names, not chord symbols in staff or chord grid blocks.
+Use `chord-font:` to set the font for the chord names above the boxes in one block. Options: `system`, `julesjazz`, `musejazz`. Without it, the block uses the **Chord box font** setting. The `chord-font:` option changes only chord box names, not chord symbols in staff or chord grid blocks.
 
 ```brnotation
 columns: 2
@@ -719,6 +719,7 @@ Open **Settings → BRNotation** to change these options.
 | Space between systems | 20 | Vertical space in pixels between staff systems in staff notation (slider range 0 to 120). Raise it to separate lines more after breaks. |
 | Chord symbol distance | 8 | Default height in pixels of chord symbols above the top staff line (slider range 0 to 40). A chord over a note above the staff is raised further so it does not overlap the notehead. |
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
+| Chord box font | System default | Font for chord names above chord boxes. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). A block's `chord-font:` overrides it. |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
 | Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
 | Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |

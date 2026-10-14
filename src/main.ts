@@ -31,6 +31,7 @@ interface BRNotationPluginSettings {
   maxMeasuresPerLine: number;
   chordFont: string;
   chordFontSize: number;
+  chordBoxFont: string;
   staffFont: string;
   tabFont: string;
   tabFontSize: number;
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   maxMeasuresPerLine: 4,
   chordFont: "system",
   chordFontSize: 16,
+  chordBoxFont: "system",
   staffFont: "bravura",
   tabFont: "system",
   tabFontSize: 13,
@@ -145,6 +147,7 @@ export default class BRNotationPlugin extends Plugin {
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     if (this.settings.chordFont === "jazz") this.settings.chordFont = "julesjazz";
+    if (!this.settings.chordBoxFont || this.settings.chordBoxFont === "jazz") this.settings.chordBoxFont = this.settings.chordFont;
     AudioSynthesizer.getInstance().setMuted(!this.settings.enableAudio);
     this.applyFontSettings();
   }
@@ -214,7 +217,7 @@ export default class BRNotationPlugin extends Plugin {
           dotStyle: box.dotStyle ?? this.settings.diagramStyle,
         }));
         renderChordBoxes(body, boxes, parsed.chordColumns, parsed.chordSize, parsed.chordAlign);
-        const fontKey = parsed.chordFont ?? this.settings.chordFont;
+        const fontKey = parsed.chordFont ?? this.settings.chordBoxFont;
         const fontFamily = CHORD_FONT_OPTIONS[fontKey]?.family ?? CHORD_FONT_OPTIONS.system.family;
         body.style.setProperty("--br-chord-box-font", fontFamily);
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
@@ -325,6 +328,17 @@ class BRNotationSettingTab extends PluginSettingTab {
         for (const [key, opt] of Object.entries(CHORD_FONT_OPTIONS)) dd.addOption(key, opt.label);
         dd.setValue(this.plugin.settings.chordFont).onChange(async (val) => {
           this.plugin.settings.chordFont = val;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Chord box font")
+      .setDesc("Font used for chord names above chord boxes. A block's chord-font: overrides this.")
+      .addDropdown((dd) => {
+        for (const [key, opt] of Object.entries(CHORD_FONT_OPTIONS)) dd.addOption(key, opt.label);
+        dd.setValue(this.plugin.settings.chordBoxFont).onChange(async (val) => {
+          this.plugin.settings.chordBoxFont = val;
           await this.plugin.saveSettings();
         });
       });
