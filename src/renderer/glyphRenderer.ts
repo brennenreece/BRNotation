@@ -613,7 +613,6 @@ function layoutMeasureNotes(
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
   const middleY = bottomY - 2 * lineSpacing;
-  const stemLen = 3.5 * lineSpacing;
   const xs = noteCentres(notes, xStart, width, minGaps);
   const headYs = notes.map((note) =>
     note.isRest ? [] : (note.pitches ?? []).map((p) => bottomY - ((stepOf(p) - bottomStep) * lineSpacing) / 2)
@@ -622,14 +621,22 @@ function layoutMeasureNotes(
   // All notes in a group share one stem direction, set by the group's average pitch.
   const beamed = new Map<number, BeamStem>();
   const groups = beamGroups(notes, timeSig);
+  const headW = size * 0.3 * headScale;
   for (const g of groups) {
     const all = g.flatMap((i) => headYs[i]);
     if (!all.length) continue;
     const avgY = all.reduce((a, b) => a + b, 0) / all.length;
     const up = avgY > middleY;
-    // One beam height for the whole group, so every stem reaches the same line.
-    const tipY = up ? Math.min(...all) - stemLen : Math.max(...all) + stemLen;
-    for (const i of g) beamed.set(i, { up, tipY });
+    // Beamed stems run 3 staff spaces from the notehead farthest from the beam, then the beam is fitted to them.
+    const groupExtreme = up ? Math.max(...all) : Math.min(...all);
+    const natural = g.map((i) => {
+      const ys = headYs[i];
+      const farthest = ys.length ? (up ? Math.max(...ys) : Math.min(...ys)) : groupExtreme;
+      return up ? farthest - 3 * lineSpacing : farthest + 3 * lineSpacing;
+    });
+    const stemXs = g.map((i) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2)));
+    const tips = fitBeamTips(stemXs, natural, up ? 1 : -1);
+    g.forEach((i, k) => beamed.set(i, { up, tipY: tips[k] }));
   }
 
   notes.forEach((note, i) => {
@@ -672,6 +679,50 @@ function beatQuarters(timeSig: string): { beat: number; compound: boolean } {
  * (every beat in compound meters), triplets and 16ths and 32nds group every beat. Rests and longer
  * notes break a group. Single notes keep their flags.
  */
+/**
+ * Port of VexFlow's Beam.calculateSlope: picks the beam slope and vertical shift that keep every
+ * stem at least its natural length, while staying close to the ideal slope. Returns each stem's tip.
+ * `dir` is 1 for stems pointing up and -1 for stems pointing down, matching VexFlow's Stem.UP.
+ */
+function fitBeamTips(xs: number[], natural: number[], dir: number): number[] {
+  const MAX_SLOPE = 0.25;
+  const MIN_SLOPE = -0.25;
+  const ITERATIONS = 20;
+  const SLOPE_COST = 100;
+  const n = xs.length;
+  const firstX = xs[0];
+  const firstY = natural[0];
+  const lastX = xs[n - 1];
+  const initialSlope = lastX > firstX ? (natural[n - 1] - firstY) / (lastX - firstX) : 0;
+  const idealSlope = initialSlope / 2;
+  const increment = (MAX_SLOPE - MIN_SLOPE) / ITERATIONS;
+  let minCost = Number.MAX_VALUE;
+  let bestSlope = 0;
+  let bestShift = 0;
+  for (let slope = MIN_SLOPE; slope <= MAX_SLOPE + 1e-9; slope += increment) {
+    let extension = 0;
+    let shift = 0;
+    for (let i = 1; i < n; i++) {
+      const adjusted = firstY + (xs[i] - firstX) * slope + shift;
+      const tip = natural[i];
+      if (tip * dir < adjusted * dir) {
+        const diff = Math.abs(tip - adjusted);
+        shift += diff * -dir;
+        extension += diff * i;
+      } else {
+        extension += (tip - adjusted) * dir;
+      }
+    }
+    const cost = SLOPE_COST * Math.abs(idealSlope - slope) + Math.abs(extension);
+    if (cost < minCost) {
+      minCost = cost;
+      bestSlope = slope;
+      bestShift = shift;
+    }
+  }
+  return xs.map((x) => firstY + (x - firstX) * bestSlope + bestShift);
+}
+
 function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
   const { beat, compound } = beatQuarters(timeSig);
   const groups: number[][] = [];
