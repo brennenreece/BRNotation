@@ -187,6 +187,7 @@ export function renderGlyphScore(
     const y0 = 20 + lineIndex * (blockHeight + 20);
 
     if (isTabOnly) {
+      const tabNoteStart = xPos + NOTE_GAP;
       // No staff: only the tab row, with the system connector and barlines around it.
       const tabY0 = y0;
       if (measureInLine === 0) {
@@ -194,7 +195,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - NOTE_END_INSET - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -216,6 +217,9 @@ export function renderGlyphScore(
       );
     }
 
+    // Where the notes of this measure start. On the first measure of a line the header
+    // (clef, key, time signature) comes first, and notes start a stave-padding gap after it.
+    let noteStartX = xPos + NOTE_GAP;
     if (measureInLine === 0) {
       const mClef = measure.clef || clef;
       const clefCp = mClef === "bass" ? G.fClef : mClef === "alto" || mClef === "tenor" ? G.cClef : G.gClef;
@@ -226,7 +230,11 @@ export function renderGlyphScore(
       const ts = measure.timeSignature || score.timeSignature;
       // VexFlow pads each modifier by 10 px, but the clef and key slots take no padding,
       // so the time signature starts 10 px after the last key accidental or the clef.
-      if (ts) drawTimeSignature(svg, ts, keyEnd + TIME_SIG_PADDING, y0, glyphSize, lineSpacing, family);
+      let headerEnd = keyEnd;
+      if (ts) {
+        headerEnd = drawTimeSignature(svg, ts, keyEnd + TIME_SIG_PADDING, y0, glyphSize, lineSpacing, family);
+      }
+      noteStartX = headerEnd + NOTE_GAP;
     }
 
     // Barlines follow the VexFlow staff: the first measure of a line gets a left edge, and
@@ -237,7 +245,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
+    layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -254,7 +262,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
+      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - NOTE_END_INSET - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
       const tabHeightPx = (numStrings - 1) * tabSpacing;
       drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
       if (measureInLine === 0 && measure.startBarline === "repeat-begin") {
@@ -418,6 +426,14 @@ function clefWidth(clef: string, size: number): number {
   return size * 0.671;
 }
 
+/**
+ * Gap between the header (clef, key, time signature) and the first note, and the inset of
+ * every measure's notes from its left barline. VexFlow's Stave.padding is 12 px.
+ */
+const NOTE_GAP = 12;
+/** Space kept before each measure's right barline. VexFlow reserves 22 px (12 + 10). */
+const NOTE_END_INSET = 22;
+
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
 
@@ -426,7 +442,10 @@ const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.43
 /** Baseline offset (em) that centres a digit's measured ink vertically on its anchor. */
 const TIME_DIGIT_CENTRE_EM = 0.0075;
 
-/** Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves. */
+/**
+ * Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves.
+ * Returns the x where the time signature ends.
+ */
 function drawTimeSignature(
   svg: SVGElement,
   ts: string,
@@ -435,9 +454,9 @@ function drawTimeSignature(
   size: number,
   ls: number,
   family: string
-): void {
+): number {
   const [num, den] = ts.split("/");
-  if (!num || !den) return;
+  if (!num || !den) return x;
   // Numerator and denominator are centred in a column as wide as the longer of the two,
   // using each digit's measured advance.
   const textWidth = (text: string) =>
@@ -455,6 +474,7 @@ function drawTimeSignature(
   // and 0.245 em below the baseline, so the visual centre sits roughly on the baseline).
   drawNumber(num, y0 + ls + TIME_DIGIT_CENTRE_EM * size);
   drawNumber(den, y0 + 3 * ls + TIME_DIGIT_CENTRE_EM * size);
+  return x + colW;
 }
 
 /**
