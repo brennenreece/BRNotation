@@ -400,7 +400,14 @@
   margin: 0 auto;
 }
 
-.br-fretboard-map-container .br-diagram-title,
+.br-fretboard-map-container .br-fretboard-title {
+  text-align: center;
+  margin: 0 0 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 .br-chord-box-container .br-diagram-title {
   text-align: center;
   font-family: var(--br-chord-box-font, var(--font-sans));

@@ -275,7 +275,7 @@ export function renderFretboardScale(
   const wrapper = containerEl.createDiv({ cls: "br-diagram br-fretboard-map-container" });
 
   if (data.title) {
-    const titleEl = wrapper.createDiv({ cls: "br-diagram-title" });
+    const titleEl = wrapper.createEl("h3", { cls: "br-notation-title br-fretboard-title" });
     titleEl.setText(data.title);
   }
 
