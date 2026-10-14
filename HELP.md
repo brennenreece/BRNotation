@@ -182,7 +182,7 @@ key: G
 
 ### Multiple measures per line
 
-By default, the plugin puts up to 4 measures on each line (see [Settings](#settings)). Use `per-row:` in chord grids to change this for those blocks.
+Lines break by width. The plugin fits as many measures on each line as the minimum note spacing allows, up to 4 (see [Settings](#settings)). Use `per-row:` in chord grids to change this for those blocks.
 
 ---
 
@@ -553,7 +553,7 @@ Open **Settings → BRNotation** to change these options.
 | Default instrument tuning | Standard | Tuning used when a block does not set `tuning:`. |
 | Audio auditioning and playback | On | Plays a note when you click a key, fret, or note in the editor. |
 | Default clef | Treble | Clef used when a notation block does not set `clef:`. |
-| Maximum measures per line | 4 | Upper limit on measures per staff line (slider range 1 to 8). If there are fewer measures, they fill the line. |
+| Maximum measures per line | 4 | Upper limit on measures per staff line (slider range 1 to 8). Lines also break when the next measure would not fit at its minimum width. |
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
 | Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |

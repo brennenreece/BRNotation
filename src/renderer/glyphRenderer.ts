@@ -157,14 +157,17 @@ export function renderGlyphScore(
   const COUPLED_STAFF_TAB_GAP = 60;
   const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
   const blockHeight = isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight;
-  const totalLines = Math.ceil(score.measures.length / measuresPerLine);
-  const totalHeight = totalLines * (blockHeight + 20) + 20;
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
   const headScale = options.noteheadScale ?? 1;
   const spacing = Math.max(0, options.spacingScale ?? 1);
   const noteGap = NOTE_GAP * spacing;
   const noteEndInset = NOTE_END_INSET * spacing;
+  // SMuFL glyphs are drawn so that one staff space is 0.25 em. Staff lines are 4 spaces apart.
+  const glyphSize = lineSpacing * 4 * scale;
+  const systemStarts = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
+  const totalLines = systemStarts.length;
+  const totalHeight = totalLines * (blockHeight + 20) + 20;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -174,21 +177,21 @@ export function renderGlyphScore(
   }) as SVGSVGElement;
   wrapper.appendChild(svg);
 
-  // SMuFL glyphs are drawn so that one staff space is 0.25 em. Staff lines are 4 spaces apart.
-  const glyphSize = lineSpacing * 4 * scale;
 
   // A measure's time signature applies to it and every measure after it until the next change.
   let currentTimeSig = score.timeSignature;
   for (let mIdx = 0; mIdx < score.measures.length; mIdx++) {
     const measure = score.measures[mIdx];
     if (measure.timeSignature) currentTimeSig = measure.timeSignature;
-    const lineIndex = Math.floor(mIdx / measuresPerLine);
-    const measureInLine = mIdx % measuresPerLine;
-    const countOnLine = Math.min(measuresPerLine, score.measures.length - lineIndex * measuresPerLine);
+    const lineIndex = systemStarts.findLastIndex((s) => s <= mIdx);
+    const lineStart = systemStarts[lineIndex];
+    const lineEnd = lineIndex + 1 < systemStarts.length ? systemStarts[lineIndex + 1] : score.measures.length;
+    const measureInLine = mIdx - lineStart;
+    const countOnLine = lineEnd - lineStart;
     // Each system's first measure opens with the header (clef, key, time signature). Its box
     // includes that header, so the bars after it are spaced evenly over the remaining length
     // and the notes of every measure get the same usable width.
-    const lineFirst = score.measures[lineIndex * measuresPerLine];
+    const lineFirst = score.measures[lineStart];
     const sysHeader = isTabOnly
       ? 0
       : headerWidth(
@@ -390,6 +393,47 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
 
   for (const gap of gapsFor(scale)) xs.push(xs[xs.length - 1] + gap);
   return xs;
+}
+
+/**
+ * Index of the first measure of each system. A system takes as many measures as fit at their
+ * minimum widths, capped by the `maxPerLine` setting, so measures wrap rather than squeeze.
+ * Every system holds at least one measure.
+ */
+function breakSystems(
+  score: NotationScore,
+  containerWidth: number,
+  maxPerLine: number,
+  isTabOnly: boolean,
+  clef: string,
+  glyphSize: number,
+  noteGap: number,
+  noteEndInset: number,
+  tabSize: number,
+  headScale: number,
+  isCoupled: boolean
+): number[] {
+  const starts: number[] = [];
+  let i = 0;
+  while (i < score.measures.length) {
+    starts.push(i);
+    const first = score.measures[i];
+    const header = isTabOnly
+      ? 0
+      : headerWidth(first.clef || clef, first.keySignature || score.keySignature, first.timeSignature || score.timeSignature, glyphSize) + noteGap;
+    let used = header;
+    let count = 0;
+    while (i < score.measures.length && count < maxPerLine) {
+      const m = score.measures[i];
+      const gaps = isTabOnly ? tabOnlyMinGaps(m, score.tuning, tabSize) : measureMinGaps(m, score.tuning, tabSize, isCoupled, headScale, glyphSize);
+      const need = gaps.reduce((a, b) => a + b, 0) + noteEndInset + noteGap;
+      if (count > 0 && used + need > containerWidth) break;
+      used += need;
+      count++;
+      i++;
+    }
+  }
+  return starts;
 }
 
 /** Vertical lines and repeat dots, drawn with the same geometry as the VexFlow staff. */
