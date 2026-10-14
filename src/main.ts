@@ -35,6 +35,7 @@ interface BRNotationPluginSettings {
   tabFontSize: number;
   tabNumberOffset: number;
   spacingScale: number;
+  systemGap: number;
   diagramStyle: DiagramDotStyle;
 }
 
@@ -51,6 +52,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   tabFontSize: 13,
   tabNumberOffset: 0,
   spacingScale: 1,
+  systemGap: 20,
   diagramStyle: "classic",
 };
 
@@ -215,6 +217,7 @@ export default class BRNotationPlugin extends Plugin {
           tabFontSize: this.settings.tabFontSize,
           tabNumberOffset: this.settings.tabNumberOffset,
           spacingScale: this.settings.spacingScale,
+          systemGap: this.settings.systemGap,
         });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
@@ -410,6 +413,20 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.spacingScale = val;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Space between systems")
+      .setDesc("Vertical space in pixels between staff systems (lines) in staff notation. Raise it to separate lines more after breaks.")
+      .addSlider((sl) =>
+        sl
+          .setLimits(0, 120, 2)
+          .setValue(this.plugin.settings.systemGap)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.systemGap = val;
             await this.plugin.saveSettings();
           })
       );

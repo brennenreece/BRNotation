@@ -24,6 +24,8 @@ export interface GlyphRenderOptions {
   noteheadScale?: number;
   /** Multiplier for the space after barlines and after the time signature (1 = default). */
   spacingScale?: number;
+  /** Vertical space in px between systems (default 20). */
+  systemGap?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -173,9 +175,10 @@ export function renderGlyphScore(
   const glyphSize = lineSpacing * 4 * scale;
   const { starts: systemStarts, widths: measureWidths } = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
   const totalLines = systemStarts.length;
-  const totalHeight = totalLines * (blockHeight + 20) + 20;
+  const systemGap = Math.max(0, options.systemGap ?? 20);
+  const totalHeight = totalLines * (blockHeight + systemGap) + 20;
   // Y of the top staff line in each system, below the chord-symbol room.
-  const staffTop = (lineIndex: number) => 20 + lineIndex * (blockHeight + 20) + chordRoom;
+  const staffTop = (lineIndex: number) => 20 + lineIndex * (blockHeight + systemGap) + chordRoom;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
