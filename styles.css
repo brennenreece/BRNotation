@@ -385,6 +385,18 @@
   overflow-x: auto;
 }
 
+/* Chord boxes scale down to fit the block instead of scrolling */
+.br-chord-box-container {
+  overflow-x: visible;
+  width: 100%;
+}
+
+.br-chord-box-container .br-chord-box-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 .br-fretboard-map-container .br-fretboard-svg {
   max-width: none;
   flex-shrink: 0;
