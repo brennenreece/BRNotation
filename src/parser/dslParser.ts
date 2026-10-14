@@ -70,6 +70,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let scaleName = "minor-pentatonic";
   let minFret = 0;
   let maxFret = 12;
+  let fretboardBaseFret: number | undefined = undefined;
   let displayMode: "degrees" | "notes" = "degrees";
   let dotStyle: DiagramDotStyle | undefined = undefined;
   let dotColor: DiagramColor | undefined = undefined;
@@ -275,6 +276,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
     if (lower.startsWith("base-fret:") || lower.startsWith("basefret:")) {
       baseFret = parseInt(trimmed.split(":")[1].trim(), 10) || 1;
+      fretboardBaseFret = baseFret;
       if (pendingChord) pendingChord.baseFret = baseFret;
       continue;
     }
@@ -337,13 +339,15 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }));
     return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordSize, chordAlign, chordFont, errors };
   } else if (mode === "fretboard") {
+    // base-fret: is the first fret shown; the map keeps a 12-fret span from there.
+    const fbMin = fretboardBaseFret ?? minFret;
     const fretboardScale: FretboardScaleData = {
       title,
       root: scaleRoot,
       scale: scaleName,
       tuning,
-      minFret,
-      maxFret,
+      minFret: fbMin,
+      maxFret: fbMin + (maxFret - minFret),
       displayMode,
       dotStyle,
       dotColor,
