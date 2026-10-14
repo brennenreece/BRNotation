@@ -557,7 +557,7 @@ function drawNote(
     const sy1 = beam ? (stemUp ? Math.max(...ys) : Math.min(...ys)) : extreme;
     const sy2 = beam ? beam.tipY : stemUp ? extreme - stemLen : extreme + stemLen;
     svg.appendChild(
-      el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1, ls * 0.12) })
+      el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1.5, ls * 0.15) })
     );
     if (!beam) {
       const flag = flagFor(note.duration, stemUp);
@@ -606,10 +606,10 @@ function drawDots(
 /** Ledger lines for notes above or below the staff. */
 function drawLedgers(svg: SVGElement, x: number, yHead: number, bottomY: number, ls: number): void {
   const topY = bottomY - 4 * ls;
-  const half = ls * 0.9;
+  const half = ls * 1.0;
   const lineAt = (y: number) =>
     svg.appendChild(
-      el("line", { x1: x - half, x2: x + half, y1: y, y2: y, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1, ls * 0.12) })
+      el("line", { x1: x - half, x2: x + half, y1: y, y2: y, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1.2, ls * 0.2) })
     );
   if (yHead > bottomY + ls / 2) {
     for (let y = bottomY + ls; y <= yHead + 0.01; y += ls) lineAt(y);
