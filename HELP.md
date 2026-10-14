@@ -188,7 +188,7 @@ key: C
 | c4/q "Am7" d4/q e4/q "G7alt" f4/q | g4/h "Cm7b5" r/q |
 ```
 
-Chord names are shown exactly as you type them, so any jazz quality works, for example `Cmaj7`, `Dm7`, `G7`, `C7alt`, `Cm7b5`, `C7#9`, `G7sus4`, or `C/E`. In `coupled` blocks the chord symbol sits above the notation staff, not the tab. A chord symbol with no note or rest after it is reported as an error.
+Chord names are shown exactly as you type them, so any jazz quality works, for example `Cmaj7`, `Dm7`, `G7`, `C7alt`, `Cm7b5`, `C7#9`, `G7sus4`, or `C/E`. In `coupled` blocks the chord symbol sits above the notation staff, not the tab. The chord symbol starts at the left edge of its notehead. When the note sits above the staff, the chord symbol is raised to clear it, and the space between systems makes room for it. The default height is set by **Chord symbol distance** in the plugin settings. A chord symbol with no note or rest after it is reported as an error.
 
 ### Lyrics
 
@@ -607,6 +607,7 @@ Open **Settings → BRNotation** to change these options.
 | Maximum measures per line | 4 | Upper limit on measures per staff line (slider range 1 to 8). Lines also break when the next measure would not fit at its minimum width. |
 | Spacing after barlines and time signature | 1 | Scales the space after barlines and the time signature in staff notation (slider range 0.5 to 3). Raise it for more room. |
 | Space between systems | 20 | Vertical space in pixels between staff systems in staff notation (slider range 0 to 120). Raise it to separate lines more after breaks. |
+| Chord symbol distance | 8 | Default height in pixels of chord symbols above the top staff line (slider range 0 to 40). A chord over a note above the staff is raised further so it does not overlap the notehead. |
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
 | Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |

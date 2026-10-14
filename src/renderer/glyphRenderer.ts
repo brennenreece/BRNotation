@@ -26,6 +26,8 @@ export interface GlyphRenderOptions {
   spacingScale?: number;
   /** Vertical space in px between systems (default 20). */
   systemGap?: number;
+  /** Vertical space in px between the staff and chord symbols above it (default 8). */
+  chordDistance?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -162,7 +164,10 @@ export function renderGlyphScore(
   // Chord symbols sit above the staff and lyrics below it. Room is only reserved when the score uses them.
   const hasChords = score.measures.some((m) => m.notes.some((n) => n.chordSymbol));
   const hasLyrics = score.measures.some((m) => m.notes.some((n) => n.lyric || n.lyricHold));
-  const chordRoom = hasChords && !isTabOnly ? CHORD_ROOM * scale : 0;
+  const chordDistance = Math.max(0, options.chordDistance ?? CHORD_DISTANCE_DEFAULT) * scale;
+  const maxLift = hasChords && !isTabOnly ? maxChordLift(score, clef, lineSpacing) : 0;
+  // The room is at least the original chord room, so default layouts keep their height.
+  const chordRoom = hasChords && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift) : 0;
   const lyricRoom = hasLyrics && !isTabOnly ? LYRIC_ROOM * scale : 0;
   const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight) + chordRoom + lyricRoom;
   const tabFont = options.tabFontFamily ?? family;
@@ -177,7 +182,8 @@ export function renderGlyphScore(
   const totalLines = systemStarts.length;
   const systemGap = Math.max(0, options.systemGap ?? 20);
   const totalHeight = totalLines * (blockHeight + systemGap) + 20;
-  // Y of the top staff line in each system, below the chord-symbol room.
+  // Y of the top staff line in each system, below the chord-symbol room. The room is shared by all
+  // systems, so the gap between systems already accounts for chords raised above the staff.
   const staffTop = (lineIndex: number) => 20 + lineIndex * (blockHeight + systemGap) + chordRoom;
 
   const svg = el("svg", {
@@ -268,7 +274,7 @@ export function renderGlyphScore(
 
     const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize));
     // Chord symbols sit above the staff. Lyrics sit below the notation staff (in coupled blocks, above the tab).
-    drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom);
+    drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom, clef, chordDistance, glyphSize * 0.3 * headScale / 2);
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -595,8 +601,39 @@ function clefWidth(clef: string, size: number): number {
 /** Vertical room (px at scale 1) for chord symbols above the staff and lyrics below it. */
 const CHORD_ROOM = 26;
 const LYRIC_ROOM = 26;
-/** Baseline offsets (px at scale 1) of chord symbols above the top line and lyrics below the bottom line. */
-const CHORD_BASELINE_GAP = 8;
+/** Default gap (px at scale 1) between the top staff line and the chord symbol baseline. */
+const CHORD_DISTANCE_DEFAULT = 8;
+
+/**
+ * How far (px) a note's highest notehead rises above the top staff line, or 0 when it stays within
+ * the staff. Chord symbols over such a note are raised by this amount so they do not overlap it.
+ */
+function chordLift(note: ScoreNote, clef: string, lineSpacing: number): number {
+  if (note.isRest || !note.pitches?.length) return 0;
+  const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
+  // Heights are measured from the top staff line (y = 0, growing downward), so a notehead above it
+  // has a negative y. The notehead's half-height is half a staff space.
+  const bottomRel = 4 * lineSpacing;
+  let highestTop = Infinity;
+  for (const p of note.pitches) {
+    const yHead = bottomRel - ((stepOf(p) - bottomStep) * lineSpacing) / 2;
+    highestTop = Math.min(highestTop, yHead - lineSpacing / 2);
+  }
+  return Math.max(0, -highestTop);
+}
+
+/** The largest chord lift of any chord-bearing note in the score. */
+function maxChordLift(score: NotationScore, clef: string, lineSpacing: number): number {
+  let lift = 0;
+  for (const m of score.measures) {
+    for (const n of m.notes) {
+      if (n.chordSymbol) lift = Math.max(lift, chordLift(n, clef, lineSpacing));
+    }
+  }
+  return lift;
+}
+/** Approximate height (px at scale 1) of a chord symbol's text above its baseline. */
+const CHORD_TEXT_HEIGHT = 14;
 const LYRIC_BASELINE_GAP = 16;
 const LYRIC_FONT_SIZE = 13;
 
@@ -831,13 +868,19 @@ function drawNoteTexts(
   family: string,
   scale: number,
   chordRoom: number,
-  lyricRoom: number
+  lyricRoom: number,
+  clef: string,
+  chordDistance: number,
+  headHalfWidth: number
 ): void {
   const staffBottom = y0 + 4 * lineSpacing;
   const lyricSize = LYRIC_FONT_SIZE * scale;
   notes.forEach((note, i) => {
     if (note.chordSymbol && chordRoom) {
-      const t = el("text", { x: xs[i], y: y0 - CHORD_BASELINE_GAP * scale, "text-anchor": "middle" });
+      // Left-aligned at the notehead, sitting above the chord's highest notehead when that rises above the staff.
+      const lift = chordLift(note, clef, lineSpacing);
+      const baseline = y0 - chordDistance - lift;
+      const t = el("text", { x: xs[i] - headHalfWidth, y: baseline, "text-anchor": "start" });
       applyChordTextStyle(t);
       t.textContent = note.chordSymbol;
       svg.appendChild(t);

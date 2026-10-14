@@ -36,6 +36,7 @@ interface BRNotationPluginSettings {
   tabNumberOffset: number;
   spacingScale: number;
   systemGap: number;
+  chordDistance: number;
   diagramStyle: DiagramDotStyle;
 }
 
@@ -53,6 +54,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   tabNumberOffset: 0,
   spacingScale: 1,
   systemGap: 20,
+  chordDistance: 8,
   diagramStyle: "classic",
 };
 
@@ -218,6 +220,7 @@ export default class BRNotationPlugin extends Plugin {
           tabNumberOffset: this.settings.tabNumberOffset,
           spacingScale: this.settings.spacingScale,
           systemGap: this.settings.systemGap,
+          chordDistance: this.settings.chordDistance,
         });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
@@ -427,6 +430,20 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.systemGap = val;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Chord symbol distance")
+      .setDesc("Vertical space in pixels between the top staff line and chord symbols above it in staff notation.")
+      .addSlider((sl) =>
+        sl
+          .setLimits(0, 40, 1)
+          .setValue(this.plugin.settings.chordDistance)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.chordDistance = val;
             await this.plugin.saveSettings();
           })
       );
