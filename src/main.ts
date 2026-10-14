@@ -34,6 +34,7 @@ interface BRNotationPluginSettings {
   staffFont: string;
   tabFont: string;
   tabFontSize: number;
+  tabNumberOffset: number;
   diagramStyle: DiagramDotStyle;
 }
 
@@ -49,6 +50,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   staffFont: "bravura",
   tabFont: "system",
   tabFontSize: 13,
+  tabNumberOffset: 0,
   diagramStyle: "classic",
 };
 
@@ -212,6 +214,7 @@ export default class BRNotationPlugin extends Plugin {
           tabLineSpacing: this.settings.tabLineSpacing,
           tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
           tabFontSize: this.settings.tabFontSize,
+          tabNumberOffset: this.settings.tabNumberOffset,
         });
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
@@ -394,6 +397,20 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.tabFontSize = val;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Tab number vertical offset")
+      .setDesc("Shift fret numbers up (negative) or down (positive), in px. Use 0 to centre them on the string lines (default).")
+      .addSlider((sl) =>
+        sl
+          .setLimits(-6, 6, 0.5)
+          .setValue(this.plugin.settings.tabNumberOffset)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.tabNumberOffset = val;
             await this.plugin.saveSettings();
           })
       );

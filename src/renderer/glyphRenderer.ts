@@ -19,6 +19,8 @@ export interface GlyphRenderOptions {
   /** CSS font stack for tab fret numbers (coupled blocks). */
   tabFontFamily?: string;
   tabFontSize?: number;
+  /** Vertical shift in px applied to fret numbers only (negative = up). */
+  tabNumberOffset?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -143,6 +145,7 @@ export function renderGlyphScore(
   const totalHeight = totalLines * (blockHeight + 20) + 20;
   const tabFont = options.tabFontFamily ?? family;
   const tabSize = options.tabFontSize ?? 13;
+  const tabNumberOffset = options.tabNumberOffset ?? 0;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -177,7 +180,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth);
+      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -205,10 +208,24 @@ export function renderGlyphScore(
       glyph(svg, clefCp, xPos + 4, clefBaselineY(mClef, y0, lineSpacing), glyphSize, family);
     }
 
-    // Left edge barline is drawn where VexFlow would
+    // Same barline placement as the VexFlow staff: each measure ends with a single barline
+    // at its right edge; the first measure of a line also gets one at its left edge.
     // In coupled blocks the line start is drawn as one system connector below.
-    if ((measureInLine === 0 && !isCoupled) || isLastOnLine || measure.barline || measureInLine > 0) {
-      const xBar = isLastOnLine ? xPos + thisMeasureWidth : xPos;
+    if (measureInLine === 0 && !isCoupled) {
+      svg.appendChild(
+        el("line", {
+          x1: xPos,
+          x2: xPos,
+          y1: y0,
+          y2: y0 + 4 * lineSpacing,
+          style: "stroke: var(--text-normal, #000)",
+          "stroke-width": 1,
+        })
+      );
+    }
+    const isEndBar = measure.barline === "end" || measure.barline === "repeat-end";
+    if (!isEndBar || !isLastOnLine) {
+      const xBar = xPos + thisMeasureWidth;
       svg.appendChild(
         el("line", {
           x1: xBar,
@@ -238,7 +255,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth);
+      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset);
     }
   }
 
@@ -266,7 +283,8 @@ function drawTabMeasure(
   family: string,
   size: number,
   xPos: number,
-  measureWidth: number
+  measureWidth: number,
+  numberOffset = 0
 ): void {
   const stroke = "stroke: var(--text-normal, #000)";
   const tabBottom = tabY0 + (numStrings - 1) * tabSpacing;
@@ -291,11 +309,11 @@ function drawTabMeasure(
       // Break the string line behind the number, as VexFlow tab does.
       const w = label.length * size * 0.6 + 4;
       svg.appendChild(
-        el("rect", { x: x - w / 2, y: y - size * 0.55, width: w, height: size * 1.1, style: "fill: var(--background-primary, #fff)" })
+        el("rect", { x: x - w / 2, y: y + numberOffset - size * 0.55, width: w, height: size * 1.1, style: "fill: var(--background-primary, #fff)" })
       );
       const t = el("text", {
         x,
-        y,
+        y: y + numberOffset,
         "dominant-baseline": "central",
         "font-family": family,
         "font-size": size,
