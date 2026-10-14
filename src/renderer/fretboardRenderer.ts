@@ -480,7 +480,7 @@ function renderCustomNotes(
     const noteStyle = note.style ?? data.dotStyle;
     const color = note.color ?? data.dotColor;
     const circle = createDot(svgNS, shapeFor(noteStyle), x, y, dotRadius + (isRoot ? 1 : 0));
-    circle.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(noteStyle, isRoot, color).filter((c) => c !== "is-root"));
+    circle.classList.add("br-diagram-dot", isRoot ? "is-root" : "is-note", ...dotStyleClass(noteStyle, isRoot, color).filter((c) => c !== "is-root"));
     g.appendChild(circle);
 
     const text = document.createElementNS(svgNS, "text");
