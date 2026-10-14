@@ -287,6 +287,11 @@ function drawTabMeasure(
     for (const { str, fret } of positions) {
       const y = tabY0 + (str - 1) * tabSpacing;
       const label = String(fret);
+      // Break the string line behind the number, as VexFlow tab does.
+      const w = label.length * size * 0.6 + 4;
+      svg.appendChild(
+        el("rect", { x: x - w / 2, y: y - size * 0.55, width: w, height: size * 1.1, style: "fill: var(--background-primary, #fff)" })
+      );
       const t = el("text", {
         x,
         y: y + size * 0.35,
