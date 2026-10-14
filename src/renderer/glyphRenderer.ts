@@ -178,6 +178,10 @@ export function renderGlyphScore(
         );
       }
       drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth);
+      if (!isLastOnLine) {
+        // Measure boundary: a single barline between measures, drawn at the right edge.
+        svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
+      }
       continue;
     }
 
@@ -203,7 +207,7 @@ export function renderGlyphScore(
 
     // Left edge barline is drawn where VexFlow would
     // In coupled blocks the line start is drawn as one system connector below.
-    if ((measureInLine === 0 && !isCoupled) || isLastOnLine || measure.barline) {
+    if ((measureInLine === 0 && !isCoupled) || isLastOnLine || measure.barline || measureInLine > 0) {
       const xBar = isLastOnLine ? xPos + thisMeasureWidth : xPos;
       svg.appendChild(
         el("line", {
@@ -291,7 +295,8 @@ function drawTabMeasure(
       );
       const t = el("text", {
         x,
-        y: y + size * 0.35,
+        y,
+        "dominant-baseline": "central",
         "font-family": family,
         "font-size": size,
         "font-weight": "bold",
@@ -608,10 +613,11 @@ function drawDots(
 /** Ledger lines for notes above or below the staff. */
 function drawLedgers(svg: SVGElement, x: number, yHead: number, bottomY: number, ls: number): void {
   const topY = bottomY - 4 * ls;
-  const half = ls * 1.0;
+  // Notehead glyph is about 1.2 staff spaces wide; the ledger overhangs it equally on both sides.
+  const half = ls * 0.8;
   const lineAt = (y: number) =>
     svg.appendChild(
-      el("line", { x1: x - half, x2: x + half, y1: y, y2: y, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1.2, ls * 0.2) })
+      el("line", { x1: x - half, x2: x + half, y1: y, y2: y, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
     );
   if (yHead > bottomY + ls / 2) {
     for (let y = bottomY + ls; y <= yHead + 0.01; y += ls) lineAt(y);
