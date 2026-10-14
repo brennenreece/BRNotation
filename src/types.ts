@@ -39,6 +39,7 @@ export interface ScoreMeasure {
   notes: ScoreNote[];
   startBarline?: "repeat-begin"; // left edge; right edge is `barline`
   barline?: "single" | "double" | "repeat-end" | "end"; // right edge
+  systemBreak?: boolean; // written as `\` before the measure: starts a new system
 }
 
 export interface NotationScore {

@@ -429,6 +429,7 @@ function breakSystems(
     const lineStart = i;
     let count = 0;
     while (i < score.measures.length && count < maxPerLine) {
+      if (count > 0 && score.measures[i].systemBreak) break;
       if (count > 0 && used + natural[i] > containerWidth) break;
       used += natural[i];
       count++;

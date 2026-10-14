@@ -184,6 +184,17 @@ key: G
 
 Lines break by width. The plugin fits as many measures on each line as the minimum note spacing allows, up to 4 (see [Settings](#settings)). Use `per-row:` in chord grids to change this for those blocks.
 
+To start a new line at a specific measure, put `\` immediately before that measure. The break is forced, and the lines around it still follow the width rules:
+
+```brnotation
+mode: notation
+time: 4/4
+key: C
+clef: treble
+
+| c4/q d4/q e4/q f4/q | g4/h c5/h | \ c5/q b4/q a4/q g4/q | f4/h e4/h |
+```
+
 ---
 
 ## Tablature

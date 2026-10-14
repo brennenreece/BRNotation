@@ -349,11 +349,13 @@ function parseNotationContent(
   // Split into segments at barline tokens, keeping each barline as its own token.
   // Longest tokens first so ":|:" and "|:" are not read as "|" or ":".
   const fullContent = lines.join(" ");
-  const parts = fullContent.split(/(:\|:|\|\||\|:|:\||\|\.|\|)/);
+  const parts = fullContent.split(/(:\|:|\|\||\|:|:\||\|\.|\||\\)/);
 
   // A barline token closes the current measure and opens the next one,
   // e.g. ":|:" is a repeat-end on the left and a repeat-begin on the right.
+  // A `\` token forces the next measure to start a new system.
   let openingBar: BarlineType = "single";
+  let pendingSystemBreak = false;
   let segment = "";
   let stickyDuration: DurationType = "q";
   const flush = (closingBar: ClosingBarline) => {
@@ -379,14 +381,18 @@ function parseNotationContent(
         notes,
         startBarline: openingBar === "repeat-begin" ? "repeat-begin" : undefined,
         barline: closingBar === "single" ? undefined : closingBar,
+        systemBreak: pendingSystemBreak || undefined,
       });
+      pendingSystemBreak = false;
     }
   };
 
   for (const part of parts) {
     if (part === undefined) continue;
     const bar = BARLINE_TOKENS[part];
-    if (bar) {
+    if (part === "\\") {
+      pendingSystemBreak = true;
+    } else if (bar) {
       flush(bar.closing);
       openingBar = bar.opening;
     } else {
