@@ -21,6 +21,8 @@ export interface GlyphRenderOptions {
   tabFontSize?: number;
   /** Vertical shift in px applied to fret numbers only (negative = up). */
   tabNumberOffset?: number;
+  /** Notehead size multiplier per font, matching the VexFlow path. */
+  noteheadScale?: number;
 }
 
 /** SMuFL codepoints used here. Bravura, Leland, Gootville, Petaluma, and the jazz fonts all carry these. */
@@ -37,6 +39,8 @@ const G = {
   flag16thDown: 0xe243,
   flag32ndUp: 0xe244,
   flag32ndDown: 0xe245,
+  timeSig0: 0xe080,
+  timeSigSlash: 0xe09a,
   restWhole: 0xe4e3,
   restHalf: 0xe4e4,
   restQuarter: 0xe4e5,
@@ -54,6 +58,10 @@ const G = {
 };
 
 const STAFF_LINE_COUNT = 5;
+/** Stem weight in px, matching VexFlow's Tables.STEM_WIDTH. */
+const STEM_W = 1.5;
+/** Ledger overhang past each side of the notehead in px, matching VexFlow's LEDGER_LINE_OFFSET. */
+const LEDGER_OVERHANG = 3;
 
 /** Diatonic step index: c=0 … b=6. Used to place notes on the staff. */
 const STEP_INDEX: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
@@ -146,6 +154,7 @@ export function renderGlyphScore(
   const tabFont = options.tabFontFamily ?? family;
   const tabSize = options.tabFontSize ?? 13;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
+  const headScale = options.noteheadScale ?? 1;
 
   const svg = el("svg", {
     class: "br-notation-svg br-glyph-svg",
@@ -206,6 +215,8 @@ export function renderGlyphScore(
       const mClef = measure.clef || clef;
       const clefCp = mClef === "bass" ? G.fClef : mClef === "alto" || mClef === "tenor" ? G.cClef : G.gClef;
       glyph(svg, clefCp, xPos + 4, clefBaselineY(mClef, y0, lineSpacing), glyphSize, family);
+      const ts = measure.timeSignature || score.timeSignature;
+      if (ts) drawTimeSignature(svg, ts, xPos + 4 + clefWidth(mClef, glyphSize), y0, glyphSize, lineSpacing, family);
     }
 
     // Same barline placement as the VexFlow staff: each measure ends with a single barline
@@ -238,7 +249,7 @@ export function renderGlyphScore(
       );
     }
 
-    layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig);
+    layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale);
 
     if (isCoupled) {
       const tabY0 = y0 + tabOffset;
@@ -262,9 +273,58 @@ export function renderGlyphScore(
   return wrapper;
 }
 
-/** Slot centre x for note `i` of `n`, matching `layoutMeasureNotes`. */
-function slotX(i: number, n: number, xStart: number, width: number): number {
-  return xStart + (width / n) * i + width / n / 2;
+/**
+ * Horizontal share for each note in a measure, following VexFlow's Formatter: a softmax over
+ * note durations with factor 10, so longer notes get more room but not in direct proportion.
+ */
+const SOFTMAX_FACTOR = 10;
+function noteShares(notes: ScoreNote[]): number[] {
+  const ticks = notes.map((n) => noteQuarters(n));
+  const total = ticks.reduce((a, b) => a + b, 0) || 1;
+  const exps = ticks.map((t) => Math.pow(SOFTMAX_FACTOR, t / total));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  return exps.map((e) => e / sum);
+}
+
+/** Centre x of each note in a measure, shared by the staff and tab rows so they line up. */
+function noteCentres(notes: ScoreNote[], xStart: number, width: number): number[] {
+  const xs: number[] = [];
+  let acc = xStart;
+  for (const sh of noteShares(notes)) {
+    xs.push(acc + (width * sh) / 2);
+    acc += width * sh;
+  }
+  return xs;
+}
+
+/** Approximate advance width of a clef glyph, so the time signature sits after it. */
+function clefWidth(clef: string, size: number): number {
+  return size * (clef === "treble" || !clef ? 0.6 : 0.45);
+}
+
+/** Draws a numerator and denominator stacked on the staff, centred on the top and bottom halves. */
+function drawTimeSignature(
+  svg: SVGElement,
+  ts: string,
+  x: number,
+  y0: number,
+  size: number,
+  ls: number,
+  family: string
+): void {
+  const [num, den] = ts.split("/");
+  if (!num || !den) return;
+  const drawNumber = (text: string, baseline: number) => {
+    const digitW = size * 0.5;
+    const startX = x + digitW * 0.1;
+    for (let k = 0; k < text.length; k++) {
+      const d = parseInt(text[k], 10);
+      glyph(svg, G.timeSig0 + d, startX + k * digitW, baseline, size, family);
+    }
+  };
+  // The numerator sits on the top two staff spaces, the denominator on the bottom two.
+  drawNumber(num, y0 + 2 * ls);
+  drawNumber(den, y0 + 4 * ls);
 }
 
 /**
@@ -297,11 +357,11 @@ function drawTabMeasure(
     el("line", { x1: xPos + measureWidth, x2: xPos + measureWidth, y1: tabY0, y2: tabBottom, style: stroke, "stroke-width": 1 })
   );
 
-  const n = measure.notes.length;
-  if (!n) return;
-  // Same slots as the staff notes, so each fret number sits under its notehead.
+  if (!measure.notes.length) return;
+  // Same note positions as the staff, so each fret number sits under its notehead.
+  const centres = noteCentres(measure.notes, xStart, width);
   measure.notes.forEach((note, i) => {
-    const x = slotX(i, n, xStart, width);
+    const x = centres[i];
     const positions = tabPositionsFor(note, tuning);
     for (const { str, fret } of positions) {
       const y = tabY0 + (str - 1) * tabSpacing;
@@ -360,16 +420,16 @@ function layoutMeasureNotes(
   family: string,
   size: number,
   lineSpacing: number,
-  timeSig: string
+  timeSig: string,
+  headScale: number
 ): void {
   const notes = measure.notes;
   if (!notes.length) return;
-  const slot = width / notes.length;
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
   const middleY = bottomY - 2 * lineSpacing;
   const stemLen = 3.5 * lineSpacing;
-  const xs = notes.map((_, i) => xStart + slot * i + slot / 2);
+  const xs = noteCentres(notes, xStart, width);
   const headYs = notes.map((note) =>
     note.isRest ? [] : (note.pitches ?? []).map((p) => bottomY - ((stepOf(p) - bottomStep) * lineSpacing) / 2)
   );
@@ -388,10 +448,10 @@ function layoutMeasureNotes(
   }
 
   notes.forEach((note, i) => {
-    drawNote(svg, note, xs[i], bottomY, bottomStep, family, size, lineSpacing, beamed.get(i));
+    drawNote(svg, note, xs[i], bottomY, bottomStep, family, size, lineSpacing, beamed.get(i), headScale);
   });
   for (const g of groups) {
-    drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing);
+    drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing, headScale);
   }
 }
 
@@ -468,22 +528,31 @@ function drawBeamGroup(
   xs: number[],
   beamed: Map<number, BeamStem>,
   size: number,
-  ls: number
+  ls: number,
+  headScale: number
 ): void {
   const first = beamed.get(group[0]);
   if (!first) return;
-  const { up, tipY } = first;
-  const headW = size * 0.3;
-  const sx = (k: number) => xs[group[k]] + (up ? headW / 2 - 1 : -headW / 2 + 1);
-  const beamH = Math.max(1.5, ls * 0.5);
-  const step = beamH + ls * 0.25;
+  const { up } = first;
+  const headW = size * 0.3 * headScale;
+  const sx = (k: number) => xs[group[k]] + (up ? headW / 2 - STEM_W / 2 : -headW / 2 + STEM_W / 2);
+  // VexFlow's beam is 5 px thick at 10 px staff spacing, with 1.5x spacing between levels.
+  const beamH = ls * 0.5;
+  const step = beamH * 1.5;
   const stubLen = ls * 1.2;
   const maxLevel = Math.max(...group.map((i) => beamCount(notes[i])));
+  // Beam slope follows the first and last stem tips, clamped to VexFlow's maxSlope (0.25 px per px).
+  const x1 = sx(0);
+  const x2 = sx(group.length - 1);
+  const tipAt = (k: number) => beamed.get(group[k])!.tipY;
+  const slopeRaw = x2 > x1 ? (tipAt(group.length - 1) - tipAt(0)) / (x2 - x1) : 0;
+  const slope = Math.max(-0.25, Math.min(0.25, slopeRaw));
+  const tipY = tipAt(0);
 
   for (let level = 1; level <= maxLevel; level++) {
     const off = (level - 1) * step;
     // Stacked beams move toward the notehead, away from the beam's outer edge.
-    const yTop = up ? tipY + off : tipY - off - beamH;
+    const yAt = (x: number) => (up ? tipY + slope * (x - x1) + off : tipY + slope * (x - x1) - off - beamH);
     const needs = group.map((i) => beamCount(notes[i]) >= level);
     let k = 0;
     while (k < group.length) {
@@ -494,22 +563,26 @@ function drawBeamGroup(
       let end = k;
       while (end + 1 < group.length && needs[end + 1]) end++;
       if (end > k) {
-        const x1 = sx(k);
-        const x2 = sx(end);
+        const bx1 = sx(k);
+        const bx2 = sx(end);
+        const t1 = yAt(bx1);
+        const t2 = yAt(bx2);
         svg.appendChild(
           el("polygon", {
-            points: `${x1},${yTop} ${x2},${yTop} ${x2},${yTop + beamH} ${x1},${yTop + beamH}`,
+            points: `${bx1},${t1} ${bx2},${t2} ${bx2},${t2 + beamH} ${bx1},${t1 + beamH}`,
             style: "fill: var(--text-normal, #000)",
           })
         );
       } else {
-        const x1 = sx(k);
-        const x2 = k === 0 ? x1 + stubLen : x1 - stubLen;
-        const xa = Math.min(x1, x2);
-        const xb = Math.max(x1, x2);
+        const bx1 = sx(k);
+        const bx2 = k === 0 ? bx1 + stubLen : bx1 - stubLen;
+        const xa = Math.min(bx1, bx2);
+        const xb = Math.max(bx1, bx2);
+        const t1 = yAt(xa);
+        const t2 = yAt(xb);
         svg.appendChild(
           el("polygon", {
-            points: `${xa},${yTop} ${xb},${yTop} ${xb},${yTop + beamH} ${xa},${yTop + beamH}`,
+            points: `${xa},${t1} ${xb},${t2} ${xb},${t2 + beamH} ${xa},${t1 + beamH}`,
             style: "fill: var(--text-normal, #000)",
           })
         );
@@ -528,7 +601,8 @@ function drawNote(
   family: string,
   size: number,
   ls: number,
-  beam?: BeamStem
+  beam?: BeamStem,
+  headScale = 1
 ): void {
   const middleY = bottomY - 2 * ls;
   if (note.isRest) {
@@ -552,7 +626,7 @@ function drawNote(
     note.duration === "w" ? G.noteheadWhole
     : note.duration === "h" ? G.noteheadHalf
     : G.noteheadBlack;
-  const headW = size * 0.3;
+  const headW = size * 0.3 * headScale;
 
   const ys: number[] = [];
   for (const p of pitches) {
@@ -560,7 +634,7 @@ function drawNote(
     // Each diatonic step is half a staff space.
     const yHead = bottomY - ((step - bottomStep) * ls) / 2;
     ys.push(yHead);
-    drawLedgers(svg, x, yHead, bottomY, ls);
+    drawLedgers(svg, x, yHead, bottomY, ls, headW);
     if (p.accidental) {
       const acc =
         p.accidental.includes("#") ? G.accidentalSharp
@@ -568,7 +642,7 @@ function drawNote(
         : G.accidentalNatural;
       glyph(svg, acc, x - headW - size * 0.25, yHead, size, family);
     }
-    glyph(svg, head, x - headW / 2, yHead, size, family);
+    glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
   }
 
   // Stem and flags. Stems go up when the note sits below the middle line.
@@ -577,12 +651,12 @@ function drawNote(
     const stemUp = beam ? beam.up : avgY > middleY;
     const stemLen = 3.5 * ls;
     const extreme = stemUp ? Math.min(...ys) : Math.max(...ys);
-    const sx = stemUp ? x + headW / 2 - 1 : x - headW / 2 + 1;
+    const sx = stemUp ? x + headW / 2 - STEM_W / 2 : x - headW / 2 + STEM_W / 2;
     // Beamed stems start at the notehead farthest from the beam and end at the beam.
     const sy1 = beam ? (stemUp ? Math.max(...ys) : Math.min(...ys)) : extreme;
     const sy2 = beam ? beam.tipY : stemUp ? extreme - stemLen : extreme + stemLen;
     svg.appendChild(
-      el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1.5, ls * 0.15) })
+      el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W })
     );
     if (!beam) {
       const flag = flagFor(note.duration, stemUp);
@@ -629,10 +703,10 @@ function drawDots(
 }
 
 /** Ledger lines for notes above or below the staff. */
-function drawLedgers(svg: SVGElement, x: number, yHead: number, bottomY: number, ls: number): void {
+function drawLedgers(svg: SVGElement, x: number, yHead: number, bottomY: number, ls: number, headW: number): void {
   const topY = bottomY - 4 * ls;
-  // Notehead glyph is about 1.2 staff spaces wide; the ledger overhangs it equally on both sides.
-  const half = ls * 0.8;
+  // VexFlow's ledger runs 3 px past each side of the notehead glyph.
+  const half = headW / 2 + LEDGER_OVERHANG;
   const lineAt = (y: number) =>
     svg.appendChild(
       el("line", { x1: x - half, x2: x + half, y1: y, y2: y, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
