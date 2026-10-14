@@ -240,8 +240,9 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   } else {
     // notation, tab, or coupled
     const notationScore = parseNotationContent(contentLines, mode, title, timeSignature, keySignature, clef, tuning, errors);
-    if (notationScore && (mode === "notation" || mode === "coupled")) {
-      notationScore.render = staffRender;
+    if (notationScore) {
+      // Tab-only blocks have no staff, so they always use the font renderer's tab drawing.
+      notationScore.render = mode === "tab" ? "font" : staffRender;
     }
     return { mode, rawText, notationScore, errors };
   }

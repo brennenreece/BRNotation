@@ -130,13 +130,15 @@ export function renderGlyphScore(
   const lineSpacing = 10 * scale;
   const staffHeight = 4 * lineSpacing + 40;
   const isCoupled = score.mode === "coupled";
+  // Tab-only blocks draw just the tab row, with no staff above it.
+  const isTabOnly = score.mode === "tab";
   const numStrings = score.tuning.length || 6;
   const tabSpacing = Math.max(8, options.tabLineSpacing ?? 16);
   const tabHeight = (numStrings - 1) * tabSpacing;
   // Gap between the staff and its tab row in coupled blocks.
   const COUPLED_STAFF_TAB_GAP = 60;
   const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
-  const blockHeight = isCoupled ? tabOffset + tabHeight + 20 : staffHeight;
+  const blockHeight = isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight;
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
   const totalHeight = totalLines * (blockHeight + 20) + 20;
   const tabFont = options.tabFontFamily ?? family;
@@ -166,6 +168,18 @@ export function renderGlyphScore(
     const isLastOnLine = measureInLine === countOnLine - 1;
     const thisMeasureWidth = isLastOnLine ? containerWidth - xPos : measureWidth;
     const y0 = 20 + lineIndex * (blockHeight + 20);
+
+    if (isTabOnly) {
+      // No staff: only the tab row, with the system connector and barlines around it.
+      const tabY0 = y0;
+      if (measureInLine === 0) {
+        svg.appendChild(
+          el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
+        );
+      }
+      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth);
+      continue;
+    }
 
     // Staff lines
     for (let i = 0; i < STAFF_LINE_COUNT; i++) {
@@ -220,7 +234,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, measureInLine === 0, xPos, thisMeasureWidth);
+      drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth);
     }
   }
 
@@ -233,8 +247,8 @@ function slotX(i: number, n: number, xStart: number, width: number): number {
 }
 
 /**
- * Draws one measure of the tab row under the staff: string lines, fret numbers centred
- * on each note's slot, and the TAB clef and connector at the start of a line.
+ * Draws one measure of a tab row: string lines and fret numbers centred on each note's slot.
+ * Used by both coupled blocks (under the staff) and tab-only blocks.
  */
 function drawTabMeasure(
   svg: SVGElement,
@@ -247,7 +261,6 @@ function drawTabMeasure(
   tuning: string[],
   family: string,
   size: number,
-  isLineStart: boolean,
   xPos: number,
   measureWidth: number
 ): void {
@@ -261,22 +274,6 @@ function drawTabMeasure(
   svg.appendChild(
     el("line", { x1: xPos + measureWidth, x2: xPos + measureWidth, y1: tabY0, y2: tabBottom, style: stroke, "stroke-width": 1 })
   );
-
-  if (isLineStart) {
-    // Tab clef label at the start of each line, matching the VexFlow tab stave.
-    const mid = tabY0 + ((numStrings - 1) * tabSpacing) / 2;
-    const t = el("text", {
-      x: xPos + 4,
-      y: mid + size * 0.35,
-      "font-family": family,
-      "font-size": size,
-      "font-weight": "bold",
-      "text-anchor": "start",
-      style: "fill: var(--text-normal, #000)",
-    }) as SVGTextElement;
-    t.textContent = "TAB";
-    svg.appendChild(t);
-  }
 
   const n = measure.notes.length;
   if (!n) return;
