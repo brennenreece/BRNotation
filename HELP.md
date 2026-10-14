@@ -156,6 +156,10 @@ time: 4/4
 
 Use `r/` followed by a duration. `rest/` also works.
 
+### Stacked notes (chords) in coupled mode
+
+Wrap notes that sound together in square brackets with one duration, for example `[c4,e4,g4]/q`. Coupled mode draws them stacked on the staff and places the matching frets on the tab.
+
 ### Chord symbols above the staff
 
 Put a chord name in double quotes:
