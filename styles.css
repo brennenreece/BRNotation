@@ -404,6 +404,10 @@
 .br-chord-box-container .br-diagram-title {
   text-align: center;
   font-family: var(--br-chord-box-font, var(--font-sans));
+  font-size: var(--br-diagram-title-size);
+  font-weight: 700;
+  color: var(--text-normal);
+  margin: 0 0 8px;
 }
 
 /* Several chord boxes in one block, laid out in rows of `columns:` boxes */

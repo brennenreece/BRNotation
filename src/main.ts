@@ -222,6 +222,8 @@ export default class BRNotationPlugin extends Plugin {
         body.style.setProperty("--br-chord-box-font", fontFamily);
       } else if (parsed.mode === "fretboard" && parsed.fretboardScale) {
         renderFretboardScale(body, { ...parsed.fretboardScale, dotStyle: parsed.fretboardScale.dotStyle ?? this.settings.diagramStyle });
+        const fretFontKey = this.settings.chordBoxFont;
+        body.style.setProperty("--br-chord-box-font", CHORD_FONT_OPTIONS[fretFontKey]?.family ?? CHORD_FONT_OPTIONS.system.family);
       } else if (parsed.notationScore?.render === "font") {
         renderGlyphScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
