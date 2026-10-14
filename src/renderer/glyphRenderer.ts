@@ -263,21 +263,19 @@ function drawTabMeasure(
   );
 
   if (isLineStart) {
+    // Tab clef label at the start of each line, matching the VexFlow tab stave.
     const mid = tabY0 + ((numStrings - 1) * tabSpacing) / 2;
-    const label = ["T", "A", "B"];
-    label.forEach((ch, i) => {
-      const t = el("text", {
-        x: xPos + 4,
-        y: mid + (i - 1) * size * 1.1 + size * 0.35,
-        "font-family": family,
-        "font-size": size,
-        "font-weight": "bold",
-        "text-anchor": "start",
-        style: "fill: var(--text-normal, #000)",
-      }) as SVGTextElement;
-      t.textContent = ch;
-      svg.appendChild(t);
-    });
+    const t = el("text", {
+      x: xPos + 4,
+      y: mid + size * 0.35,
+      "font-family": family,
+      "font-size": size,
+      "font-weight": "bold",
+      "text-anchor": "start",
+      style: "fill: var(--text-normal, #000)",
+    }) as SVGTextElement;
+    t.textContent = "TAB";
+    svg.appendChild(t);
   }
 
   const n = measure.notes.length;
@@ -288,12 +286,7 @@ function drawTabMeasure(
     const positions = tabPositionsFor(note, tuning);
     for (const { str, fret } of positions) {
       const y = tabY0 + (str - 1) * tabSpacing;
-      // Mask the string line behind the number, so the digits read cleanly.
       const label = String(fret);
-      const w = label.length * size * 0.6 + 4;
-      svg.appendChild(
-        el("rect", { x: x - w / 2, y: y - size * 0.55, width: w, height: size * 1.1, style: "fill: var(--background-primary, #fff)" })
-      );
       const t = el("text", {
         x,
         y: y + size * 0.35,
