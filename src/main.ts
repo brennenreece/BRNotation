@@ -28,7 +28,6 @@ interface BRNotationPluginSettings {
   enableAudio: boolean;
   defaultScaleFrets: number;
   maxMeasuresPerLine: number;
-  tabLineSpacing: number;
   chordFont: string;
   chordFontSize: number;
   staffFont: string;
@@ -44,7 +43,6 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   enableAudio: true,
   defaultScaleFrets: 12,
   maxMeasuresPerLine: 4,
-  tabLineSpacing: 16,
   chordFont: "system",
   chordFontSize: 16,
   staffFont: "bravura",
@@ -211,7 +209,6 @@ export default class BRNotationPlugin extends Plugin {
         renderGlyphScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
           fontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
-          tabLineSpacing: this.settings.tabLineSpacing,
           tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
           tabFontSize: this.settings.tabFontSize,
           tabNumberOffset: this.settings.tabNumberOffset,
@@ -219,7 +216,6 @@ export default class BRNotationPlugin extends Plugin {
       } else if (parsed.notationScore) {
         renderVexflowScore(body, parsed.notationScore, {
           maxMeasuresPerLine: this.settings.maxMeasuresPerLine,
-          tabLineSpacing: this.settings.tabLineSpacing,
           staffFontFamily: STAFF_FONT_OPTIONS[this.settings.staffFont]?.vexflow ?? "Bravura",
           noteheadScale: STAFF_FONT_OPTIONS[this.settings.staffFont]?.noteheadScale ?? 1,
           tabFontFamily: resolveFontFamily(TAB_FONT_OPTIONS[this.settings.tabFont]?.family ?? TAB_FONT_OPTIONS.system.family),
@@ -301,20 +297,6 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.maxMeasuresPerLine = val;
-            await this.plugin.saveSettings();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Tab line spacing")
-      .setDesc("Vertical distance in pixels between tablature string lines in tab-only blocks. Coupled staff and tab always use the staff line spacing. Default is 16.")
-      .addSlider((slider) => {
-        slider
-          .setLimits(10, 24, 1)
-          .setValue(this.plugin.settings.tabLineSpacing)
-          .setDynamicTooltip()
-          .onChange(async (val) => {
-            this.plugin.settings.tabLineSpacing = val;
             await this.plugin.saveSettings();
           });
       });

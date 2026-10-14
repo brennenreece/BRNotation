@@ -14,8 +14,6 @@ export interface GlyphRenderOptions {
   /** Multiplier on the staff space, matching the VexFlow staff font sizing. */
   scale?: number;
   maxMeasuresPerLine?: number;
-  /** Vertical space in px between tab strings (coupled blocks). */
-  tabLineSpacing?: number;
   /** CSS font stack for tab fret numbers (coupled blocks). */
   tabFontFamily?: string;
   tabFontSize?: number;
@@ -148,9 +146,8 @@ export function renderGlyphScore(
   // Tab-only blocks draw just the tab row, with no staff above it.
   const isTabOnly = score.mode === "tab";
   const numStrings = score.tuning.length || 6;
-  // Coupled tab rows share the staff's space size, so the two systems read as one grid.
-  // Tab-only blocks keep the tabLineSpacing setting.
-  const tabSpacing = isCoupled ? lineSpacing : Math.max(8, options.tabLineSpacing ?? 16);
+  // Tab strings share the staff's line spacing, so tab and staff read as one grid.
+  const tabSpacing = lineSpacing;
   const tabHeight = (numStrings - 1) * tabSpacing;
   // Gap between the staff and its tab row in coupled blocks.
   const COUPLED_STAFF_TAB_GAP = 60;

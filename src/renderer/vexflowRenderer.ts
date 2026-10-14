@@ -39,7 +39,6 @@ export interface VexflowRenderOptions {
   activeNoteIndex?: number;
   onNoteClick?: (measureIndex: number, noteIndex: number) => void;
   maxMeasuresPerLine?: number;
-  tabLineSpacing?: number;
 }
 
 // Extra space in px between the tab clef and the first fret number on standalone tab.
@@ -69,8 +68,8 @@ export function renderVexflowScore(
   const isTab = score.mode === "tab";
   const isNotation = score.mode === "notation";
 
-  // Generous stave spacing for comfortable tab line height (16px per string)
-  const tabLineSpacing = Math.max(8, options.tabLineSpacing ?? 16);
+  // Tab strings use the staff line spacing (10 px), so tab and staff share one grid.
+  const tabLineSpacing = 10;
   const numStrings = score.tuning.length || 6;
   const tabStaveHeight = (numStrings - 1) * tabLineSpacing;
   const notationStaveHeight = 85;
