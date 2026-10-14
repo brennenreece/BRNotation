@@ -133,7 +133,10 @@ export function renderGlyphScore(
   const numStrings = score.tuning.length || 6;
   const tabSpacing = Math.max(8, options.tabLineSpacing ?? 16);
   const tabHeight = (numStrings - 1) * tabSpacing;
-  const blockHeight = isCoupled ? staffHeight + tabHeight + 20 : staffHeight;
+  // Gap between the staff and its tab row in coupled blocks.
+  const COUPLED_STAFF_TAB_GAP = 60;
+  const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
+  const blockHeight = isCoupled ? tabOffset + tabHeight + 20 : staffHeight;
   const totalLines = Math.ceil(score.measures.length / measuresPerLine);
   const totalHeight = totalLines * (blockHeight + 20) + 20;
   const tabFont = options.tabFontFamily ?? family;
@@ -150,8 +153,11 @@ export function renderGlyphScore(
   // SMuFL glyphs are drawn so that one staff space is 0.25 em. Staff lines are 4 spaces apart.
   const glyphSize = lineSpacing * 4 * scale;
 
+  // A measure's time signature applies to it and every measure after it until the next change.
+  let currentTimeSig = score.timeSignature;
   for (let mIdx = 0; mIdx < score.measures.length; mIdx++) {
     const measure = score.measures[mIdx];
+    if (measure.timeSignature) currentTimeSig = measure.timeSignature;
     const lineIndex = Math.floor(mIdx / measuresPerLine);
     const measureInLine = mIdx % measuresPerLine;
     const countOnLine = Math.min(measuresPerLine, score.measures.length - lineIndex * measuresPerLine);
@@ -182,7 +188,8 @@ export function renderGlyphScore(
     }
 
     // Left edge barline is drawn where VexFlow would
-    if (measureInLine === 0 || isLastOnLine || measure.barline) {
+    // In coupled blocks the line start is drawn as one system connector below.
+    if ((measureInLine === 0 && !isCoupled) || isLastOnLine || measure.barline) {
       const xBar = isLastOnLine ? xPos + thisMeasureWidth : xPos;
       svg.appendChild(
         el("line", {
@@ -196,10 +203,23 @@ export function renderGlyphScore(
       );
     }
 
-    layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing);
+    layoutMeasureNotes(svg, measure, xPos + 30, thisMeasureWidth - 40, y0, clef, family, glyphSize, lineSpacing, currentTimeSig);
 
     if (isCoupled) {
-      const tabY0 = y0 + staffHeight;
+      const tabY0 = y0 + tabOffset;
+      if (measureInLine === 0) {
+        // Connects the staff and tab as one system at the start of each line.
+        svg.appendChild(
+          el("line", {
+            x1: xPos,
+            x2: xPos,
+            y1: y0,
+            y2: tabY0 + (numStrings - 1) * tabSpacing,
+            style: "stroke: var(--text-normal, #000)",
+            "stroke-width": 1,
+          })
+        );
+      }
       drawTabMeasure(svg, measure, xPos + 30, thisMeasureWidth - 40, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, measureInLine === 0, xPos, thisMeasureWidth);
     }
   }
@@ -243,7 +263,6 @@ function drawTabMeasure(
   );
 
   if (isLineStart) {
-    svg.appendChild(el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabBottom, style: stroke, "stroke-width": 1 }));
     const mid = tabY0 + ((numStrings - 1) * tabSpacing) / 2;
     const label = ["T", "A", "B"];
     label.forEach((ch, i) => {
@@ -306,7 +325,13 @@ function tabPositionsFor(note: ScoreNote, tuning: string[]): { str: number; fret
   return [{ str: 1, fret: 0 }];
 }
 
-/** Lays out notes across the measure in equal horizontal slots. Stems, flags, and beams are simplified. */
+/** Stem direction and beam height shared by every note in a beam group. */
+interface BeamStem {
+  up: boolean;
+  tipY: number;
+}
+
+/** Lays out notes across the measure in equal horizontal slots, with beamed groups for 8th and shorter notes. */
 function layoutMeasureNotes(
   svg: SVGElement,
   measure: ScoreMeasure,
@@ -316,18 +341,161 @@ function layoutMeasureNotes(
   clef: string,
   family: string,
   size: number,
-  lineSpacing: number
+  lineSpacing: number,
+  timeSig: string
 ): void {
   const notes = measure.notes;
   if (!notes.length) return;
   const slot = width / notes.length;
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
+  const middleY = bottomY - 2 * lineSpacing;
+  const stemLen = 3.5 * lineSpacing;
+  const xs = notes.map((_, i) => xStart + slot * i + slot / 2);
+  const headYs = notes.map((note) =>
+    note.isRest ? [] : (note.pitches ?? []).map((p) => bottomY - ((stepOf(p) - bottomStep) * lineSpacing) / 2)
+  );
+
+  // All notes in a group share one stem direction, set by the group's average pitch.
+  const beamed = new Map<number, BeamStem>();
+  const groups = beamGroups(notes, timeSig);
+  for (const g of groups) {
+    const all = g.flatMap((i) => headYs[i]);
+    if (!all.length) continue;
+    const avgY = all.reduce((a, b) => a + b, 0) / all.length;
+    const up = avgY > middleY;
+    // One beam height for the whole group, so every stem reaches the same line.
+    const tipY = up ? Math.min(...all) - stemLen : Math.max(...all) + stemLen;
+    for (const i of g) beamed.set(i, { up, tipY });
+  }
 
   notes.forEach((note, i) => {
-    const x = xStart + slot * i + slot / 2;
-    drawNote(svg, note, x, bottomY, bottomStep, family, size, lineSpacing);
+    drawNote(svg, note, xs[i], bottomY, bottomStep, family, size, lineSpacing, beamed.get(i));
   });
+  for (const g of groups) {
+    drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing);
+  }
+}
+
+/** Quarter-note length of a note, including dots. */
+function noteQuarters(note: ScoreNote): number {
+  const base: Record<string, number> = { w: 4, h: 2, q: 1, "8": 0.5, "16": 0.25, "32": 0.125 };
+  return (base[note.duration] ?? 1) * (2 - 1 / Math.pow(2, note.dots ?? 0));
+}
+
+/** Number of beams (flags) a note needs. Quarter notes and longer have none. */
+function beamCount(note: ScoreNote): number {
+  if (note.isRest) return 0;
+  return note.duration === "8" ? 1 : note.duration === "16" ? 2 : note.duration === "32" ? 3 : 0;
+}
+
+/**
+ * Beat length in quarter notes. Simple meters use the denominator's beat. Compound meters
+ * (6/8, 9/8, 12/8) use the dotted-quarter beat.
+ */
+function beatQuarters(timeSig: string): { beat: number; compound: boolean } {
+  const [numRaw, denRaw] = timeSig.split("/");
+  const num = parseInt(numRaw, 10);
+  const den = parseInt(denRaw, 10);
+  if (!num || !den) return { beat: 1, compound: false };
+  const compound = den === 8 && num % 3 === 0 && num >= 6;
+  return { beat: compound ? 1.5 : 4 / den, compound };
+}
+
+/**
+ * Splits a measure into beam groups of two or more notes. Eighths group every two beats
+ * (every beat in compound meters), and 16ths and 32nds group every beat. Rests and longer
+ * notes break a group. Single notes keep their flags.
+ */
+function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
+  const { beat, compound } = beatQuarters(timeSig);
+  const groups: number[][] = [];
+  let cur: number[] = [];
+  let curKey: string | null = null;
+  const flush = () => {
+    if (cur.length >= 2) groups.push(cur);
+    cur = [];
+    curKey = null;
+  };
+  let pos = 0;
+  notes.forEach((note, i) => {
+    const count = beamCount(note);
+    if (count === 0) {
+      flush();
+    } else {
+      const unit = count === 1 ? beat * (compound ? 1 : 2) : beat;
+      // A group is one unit of one note value, so 16ths and 8ths never share a beam.
+      const key = `${note.duration}:${Math.floor((pos + 1e-9) / unit)}`;
+      if (key !== curKey) flush();
+      curKey = key;
+      cur.push(i);
+    }
+    pos += noteQuarters(note);
+  });
+  flush();
+  return groups;
+}
+
+/**
+ * Draws the beams for one group. Primary beam runs across the whole group, and secondary beams
+ * cover only the runs of notes that need them. A lone note at a secondary level gets a stub.
+ */
+function drawBeamGroup(
+  svg: SVGElement,
+  notes: ScoreNote[],
+  group: number[],
+  xs: number[],
+  beamed: Map<number, BeamStem>,
+  size: number,
+  ls: number
+): void {
+  const first = beamed.get(group[0]);
+  if (!first) return;
+  const { up, tipY } = first;
+  const headW = size * 0.3;
+  const sx = (k: number) => xs[group[k]] + (up ? headW / 2 - 1 : -headW / 2 + 1);
+  const beamH = Math.max(1.5, ls * 0.5);
+  const step = beamH + ls * 0.25;
+  const stubLen = ls * 1.2;
+  const maxLevel = Math.max(...group.map((i) => beamCount(notes[i])));
+
+  for (let level = 1; level <= maxLevel; level++) {
+    const off = (level - 1) * step;
+    // Stacked beams move toward the notehead, away from the beam's outer edge.
+    const yTop = up ? tipY + off : tipY - off - beamH;
+    const needs = group.map((i) => beamCount(notes[i]) >= level);
+    let k = 0;
+    while (k < group.length) {
+      if (!needs[k]) {
+        k++;
+        continue;
+      }
+      let end = k;
+      while (end + 1 < group.length && needs[end + 1]) end++;
+      if (end > k) {
+        const x1 = sx(k);
+        const x2 = sx(end);
+        svg.appendChild(
+          el("polygon", {
+            points: `${x1},${yTop} ${x2},${yTop} ${x2},${yTop + beamH} ${x1},${yTop + beamH}`,
+            style: "fill: var(--text-normal, #000)",
+          })
+        );
+      } else {
+        const x1 = sx(k);
+        const x2 = k === 0 ? x1 + stubLen : x1 - stubLen;
+        const xa = Math.min(x1, x2);
+        const xb = Math.max(x1, x2);
+        svg.appendChild(
+          el("polygon", {
+            points: `${xa},${yTop} ${xb},${yTop} ${xb},${yTop + beamH} ${xa},${yTop + beamH}`,
+            style: "fill: var(--text-normal, #000)",
+          })
+        );
+      }
+      k = end + 1;
+    }
+  }
 }
 
 function drawNote(
@@ -338,7 +506,8 @@ function drawNote(
   bottomStep: number,
   family: string,
   size: number,
-  ls: number
+  ls: number,
+  beam?: BeamStem
 ): void {
   const middleY = bottomY - 2 * ls;
   if (note.isRest) {
@@ -384,17 +553,20 @@ function drawNote(
   // Stem and flags. Stems go up when the note sits below the middle line.
   if (note.duration !== "w") {
     const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const stemUp = avgY > middleY;
+    const stemUp = beam ? beam.up : avgY > middleY;
     const stemLen = 3.5 * ls;
     const extreme = stemUp ? Math.min(...ys) : Math.max(...ys);
     const sx = stemUp ? x + headW / 2 - 1 : x - headW / 2 + 1;
-    const sy1 = stemUp ? extreme : extreme;
-    const sy2 = stemUp ? extreme - stemLen : extreme + stemLen;
+    // Beamed stems start at the notehead farthest from the beam and end at the beam.
+    const sy1 = beam ? (stemUp ? Math.max(...ys) : Math.min(...ys)) : extreme;
+    const sy2 = beam ? beam.tipY : stemUp ? extreme - stemLen : extreme + stemLen;
     svg.appendChild(
       el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": Math.max(1, ls * 0.12) })
     );
-    const flag = flagFor(note.duration, stemUp);
-    if (flag) glyph(svg, flag, sx, sy2, size, family);
+    if (!beam) {
+      const flag = flagFor(note.duration, stemUp);
+      if (flag) glyph(svg, flag, sx, sy2, size, family);
+    }
   }
 
   drawDots(svg, note, x + headW, ys[0], size, family, ls);

@@ -69,7 +69,7 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `time:` | notation, tab, coupled, chordgrid | Time signature, such as `4/4`, `3/4`, `6/8`. |
 | `key:` | notation, coupled | Key signature, such as `C`, `G`, `Bb`, `F#m`. |
 | `clef:` | notation, coupled | `treble`, `bass`, or `alto`. Defaults to the setting in Settings. |
-| `glyphs:` | notation, coupled | `font` (default) draws the staff with the music font's glyphs (noteheads, clefs, flags, rests, accidentals). Coupled blocks also draw the tab in the same drawing. `vexflow` keeps VexFlow's built-in shapes. Tab-only blocks always use VexFlow. |
+| `glyphs:` | notation, coupled | `font` (default) draws the staff with the music font's glyphs (noteheads, clefs, flags, rests, accidentals). Coupled blocks also draw the tab in the same drawing. `vexflow` keeps VexFlow's built-in shapes. Tab-only blocks always use VexFlow. Beams in `font` mode group 8ths every two beats (every beat in compound meters like 6/8), and 16ths and 32nds every beat. Rests and longer notes break a group, and groups never cross a barline. |
 | `tuning:` | tab, coupled, chord, fretboard | A tuning name from [Tunings and scales](#tunings-and-scales). |
 | `per-row:` or `perrow:` | chordgrid | Measures per row. |
 | `name:` or `chord:` | chord | Chord name shown above the diagram. |
