@@ -322,7 +322,7 @@ function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, head
       const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
       gap = Math.max(gap, widest * tabSize * 0.6 + 6);
     }
-    const accWidth = accidentalWidth(note, size);
+    const accWidth = note.isRest || !note.pitches ? 0 : accidentalLayout(note.pitches, size).total;
     if (accWidth > 0) {
       // Room for the accidental plus its clearance from the previous note's head.
       gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size + headHalf * 2 + ACC_PREV_GAP * size);
@@ -340,16 +340,43 @@ function tabOnlyMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number
   });
 }
 
-/** Widest accidental on a note, or 0 when it has none. Accidental advances are Bravura em widths. */
-function accidentalWidth(note: ScoreNote, size: number): number {
-  if (note.isRest || !note.pitches) return 0;
-  let widest = 0;
-  for (const p of note.pitches) {
-    if (!p.accidental) continue;
-    const em = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
-    widest = Math.max(widest, em * size * ACC_SCALE);
+/** Drawn width of one accidental. Accidental advances are Bravura em widths. */
+function accidentalDrawnWidth(p: NotePitch, size: number): number {
+  const em = p.accidental!.includes("#") ? ACC_EM.sharp : p.accidental!.includes("b") ? ACC_EM.flat : ACC_EM.natural;
+  return em * size * ACC_SCALE;
+}
+
+/**
+ * Horizontal placement of a chord's accidentals. Accidentals whose notes sit within a fourth of
+ * each other would overlap, so each one moves to the first column (further left) that is clear.
+ * `shifts[i]` is how far left pitch i's accidental sits beyond the notehead clearance; `total` is
+ * the full width the accidentals occupy to the left of the notehead.
+ */
+function accidentalLayout(pitches: NotePitch[], size: number): { shifts: number[]; total: number } {
+  const shifts = pitches.map(() => 0);
+  const order = pitches
+    .map((p, i) => i)
+    .filter((i) => pitches[i].accidental)
+    .sort((a, b) => stepOf(pitches[b]) - stepOf(pitches[a]));
+  const cols: { steps: number[]; width: number }[] = [];
+  const colOf: number[] = [];
+  for (const i of order) {
+    const s = stepOf(pitches[i]);
+    let k = 0;
+    while (cols[k] && cols[k].steps.some((t) => Math.abs(t - s) < ACC_STAGGER_STEPS)) k++;
+    if (!cols[k]) cols[k] = { steps: [], width: 0 };
+    cols[k].steps.push(s);
+    cols[k].width = Math.max(cols[k].width, accidentalDrawnWidth(pitches[i], size));
+    colOf[i] = k;
   }
-  return widest;
+  const colShift: number[] = [];
+  let total = 0;
+  for (let k = 0; k < cols.length; k++) {
+    colShift[k] = total;
+    total += cols[k].width + ACC_PREV_GAP * size;
+  }
+  for (const i of order) shifts[i] = colShift[colOf[i]];
+  return { shifts, total: total > 0 ? total - ACC_PREV_GAP * size : 0 };
 }
 
 /**
@@ -648,6 +675,8 @@ const ACC_HEAD_GAP = 0.03;
 const ACC_PREV_GAP = 0.06;
 /** Accidental size relative to the staff glyph size. */
 const ACC_SCALE = 0.7;
+/** Chord accidentals whose notes are closer than this many diatonic steps are staggered. */
+const ACC_STAGGER_STEPS = 3;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
@@ -1125,8 +1154,9 @@ function drawNote(
     : G.noteheadBlack;
   const headW = size * 0.3 * headScale;
 
+  const accShifts = accidentalLayout(pitches, size).shifts;
   const ys: number[] = [];
-  for (const p of pitches) {
+  for (const [pi, p] of pitches.entries()) {
     const step = stepOf(p);
     // Each diatonic step is half a staff space.
     const yHead = bottomY - ((step - bottomStep) * ls) / 2;
@@ -1140,8 +1170,8 @@ function drawNote(
       const accEm = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
       // Accidentals are drawn smaller than the notehead so they don't compete with it.
       const accSize = size * ACC_SCALE;
-      // Right edge sits a small clearance left of the notehead's left edge.
-      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accEm * accSize, yHead, accSize, family);
+      // Right edge sits a small clearance left of the notehead's left edge, staggered in chords.
+      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accShifts[pi] - accEm * accSize, yHead, accSize, family);
     }
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
   }
