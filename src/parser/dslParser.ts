@@ -603,7 +603,8 @@ const BARLINE_TOKENS: Record<string, { closing: ClosingBarline; opening: Barline
 function tokenizeMeasure(measureStr: string): string[] {
   const tokens: string[] = [];
   // `:dur` directives are split out so `:q` is its own token even when written right after a note.
-  const regex = /"([^"]+)"|\[([^\]]+)\](?:\/(\w+))?(\.?)(~?)|(:(?:[whq]|8|16|32)(?=\s|$))|([^\s]+)/gi;
+  // A `{...}` annotation is kept with the note it follows, including any quoted text with spaces.
+  const regex = /"([^"]+)"|\[([^\]]+)\](?:\/(\w+))?(\.?)(~?)|(:(?:[whq]|8|16|32)(?=\s|$))|(?:[^\s{]*\{[^{}]*\}|[^\s{]+)/gi;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(measureStr)) !== null) {
@@ -612,12 +613,51 @@ function tokenizeMeasure(measureStr: string): string[] {
   return tokens;
 }
 
+/**
+ * Splits a trailing `{...}` note annotation off a token, e.g. `a4(2/2){above:1 circle}`.
+ * Returns the bare note token and the parsed annotations.
+ */
+function splitNoteAnnotations(token: string): { base: string; above?: string; below?: string; circled: boolean } | null {
+  const m = token.match(/^(.+?)\{([^{}]*)\}$/);
+  if (!m) return { base: token, circled: false };
+  const body = m[2].trim();
+  const result: { base: string; above?: string; below?: string; circled: boolean } = { base: m[1], circled: false };
+  // Items are `above:text`, `below:text`, or `circle`. Text may be quoted to include spaces.
+  const itemRe = /(above|below):("([^"]*)"|\S+)|\bcircle\b/gi;
+  let leftover = body;
+  let im: RegExpExecArray | null;
+  while ((im = itemRe.exec(body)) !== null) {
+    // Blank out each matched item so only unrecognized text is left over.
+    leftover = leftover.replace(im[0], " ".repeat(im[0].length));
+    if (im[0].toLowerCase() === "circle") {
+      result.circled = true;
+    } else if (im[1].toLowerCase() === "above") {
+      result.above = im[3] ?? im[2];
+    } else {
+      result.below = im[3] ?? im[2];
+    }
+  }
+  // Anything left over (other than whitespace) is not a valid annotation.
+  if (leftover.trim() !== "" || !body) return null;
+  return result;
+}
+
 /** Parses a single note or chord token. `defaultDuration` is the sticky `:dur` value in effect. */
 function parseNoteToken(
   token: string,
   mode: "notation" | "tab" | "coupled",
   defaultDuration: DurationType = "q"
 ): ScoreNote | null {
+  const annotated = splitNoteAnnotations(token);
+  if (!annotated) return null;
+  if (annotated.base !== token) {
+    const note = parseNoteToken(annotated.base, mode, defaultDuration);
+    if (!note) return null;
+    if (annotated.above !== undefined) note.textAbove = annotated.above;
+    if (annotated.below !== undefined) note.textBelow = annotated.below;
+    if (annotated.circled) note.circled = true;
+    return note;
+  }
   const id = "note-" + Math.random().toString(36).substring(2, 9);
 
   // Check if it's a chord symbol e.g. "Am7"

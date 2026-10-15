@@ -164,11 +164,15 @@ export function renderGlyphScore(
   // Chord symbols sit above the staff and lyrics below it. Room is only reserved when the score uses them.
   const hasChords = score.measures.some((m) => m.notes.some((n) => n.chordSymbol));
   const hasLyrics = score.measures.some((m) => m.notes.some((n) => n.lyric || n.lyricHold));
+  // Per-note text above and below the notehead, in the same rows as chords and lyrics.
+  const hasTextAbove = score.measures.some((m) => m.notes.some((n) => n.textAbove));
+  const hasTextBelow = score.measures.some((m) => m.notes.some((n) => n.textBelow));
   const chordDistance = Math.max(0, options.chordDistance ?? CHORD_DISTANCE_DEFAULT) * scale;
   const maxLift = hasChords && !isTabOnly ? maxChordLift(score, clef, lineSpacing) : 0;
   // The room is at least the original chord room, so default layouts keep their height.
-  const chordRoom = hasChords && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift) : 0;
-  const lyricRoom = hasLyrics && !isTabOnly ? LYRIC_ROOM * scale : 0;
+  const aboveRoom = hasTextAbove && !isTabOnly ? NOTE_TEXT_ROOM * scale : 0;
+  const chordRoom = (hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0;
+  const lyricRoom = (hasLyrics || hasTextBelow) && !isTabOnly ? LYRIC_ROOM * scale : 0;
   const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight) + chordRoom + lyricRoom;
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
@@ -671,6 +675,11 @@ const CHORD_CHAR_WIDTH = 9;
 const CHORD_TEXT_HEIGHT = 14;
 const LYRIC_BASELINE_GAP = 16;
 const LYRIC_FONT_SIZE = 13;
+/** Font size (px at scale 1) and extra height for `{above:}` text, which is smaller than chord symbols. */
+const NOTE_TEXT_FONT_SIZE = 11;
+const NOTE_TEXT_ROOM = 14;
+/** Gap (in staff spaces) between the notehead's outer edge and the `{circle}` ring. */
+const NOTE_CIRCLE_RADIUS = 0.85;
 
 const NOTE_GAP = 12;
 /** Space kept before each measure's right barline. VexFlow reserves 22 px (12 + 10). */
@@ -932,6 +941,48 @@ function layoutMeasureNotes(
   return xs;
 }
 
+/** A small sans-serif label centered on x, using the system UI font. */
+function noteText(x: number, y: number, text: string, size: number): SVGElement {
+  const t = el("text", {
+    x,
+    y,
+    "text-anchor": "middle",
+    "font-family": "system-ui, -apple-system, sans-serif",
+    "font-size": size,
+    style: "fill: var(--text-normal, #000)",
+  });
+  t.textContent = text;
+  return t;
+}
+
+/**
+ * The y of the lowest notehead that could collide with a text label centred on note i: notes whose
+ * centre lies within the label's horizontal span. Returns y0 when there are none below the staff.
+ */
+function lowestNoteheadY(
+  notes: ScoreNote[],
+  xs: number[],
+  i: number,
+  y0: number,
+  lineSpacing: number,
+  clef: string,
+  headHalfWidth: number
+): number {
+  const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
+  const bottomRel = y0 + 4 * lineSpacing;
+  const halfSpan = headHalfWidth * 2;
+  let lowest = y0;
+  notes.forEach((n, j) => {
+    if (n.isRest || !n.pitches?.length) return;
+    if (Math.abs(xs[j] - xs[i]) > halfSpan) return;
+    for (const p of n.pitches) {
+      const yHead = bottomRel - ((stepOf(p) - bottomStep) * lineSpacing) / 2;
+      lowest = Math.max(lowest, yHead);
+    }
+  });
+  return lowest;
+}
+
 /** Chord symbols above the staff, and lyric syllables below it, one per note. */
 function drawNoteTexts(
   svg: SVGElement,
@@ -949,7 +1000,27 @@ function drawNoteTexts(
 ): void {
   const staffBottom = y0 + 4 * lineSpacing;
   const lyricSize = LYRIC_FONT_SIZE * scale;
+  const noteTextSize = NOTE_TEXT_FONT_SIZE * scale;
   notes.forEach((note, i) => {
+    if (note.textAbove && chordRoom) {
+      // Centered over the notehead, above any chord symbol and the note's own lift.
+      const lift = chordLift(note, clef, lineSpacing);
+      const baseline = y0 - chordDistance - lift - (note.chordSymbol ? CHORD_TEXT_HEIGHT * scale + 2 * scale : 0) - 2 * scale;
+      svg.appendChild(noteText(xs[i], baseline, note.textAbove, noteTextSize));
+    }
+    if (note.textBelow && lyricRoom) {
+      // Clears any notehead below the staff in this measure (such as a low A3) at the same x.
+      const lowest = lowestNoteheadY(notes, xs, i, y0, lineSpacing, clef, headHalfWidth);
+      if (lowest > staffBottom) {
+        // Sits just under the lowest notehead in its span, rather than at the usual lyric position.
+        const baseline = lowest + lineSpacing / 2 + 2 * scale + noteTextSize * 0.8;
+        svg.appendChild(noteText(xs[i], baseline, note.textBelow, noteTextSize));
+        return;
+      }
+      const lyricOffset = note.lyric ? lyricSize + 2 * scale : 0;
+      const baseline = staffBottom + LYRIC_BASELINE_GAP * scale + noteTextSize * 0.8 - lyricOffset;
+      svg.appendChild(noteText(xs[i], baseline, note.textBelow, noteTextSize));
+    }
     if (note.chordSymbol && chordRoom) {
       // Left-aligned at the notehead. The label is raised above the highest notehead under its whole
       // width (up to the next chord symbol), so a higher note to its right cannot collide with it.
@@ -1223,6 +1294,14 @@ function drawNote(
       glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accShifts[pi] - accEm * accSize, yHead, accSize, family);
     }
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
+    if (note.circled) {
+      // Ring just outside the head so it encloses the notehead without overlapping it.
+      // The head's corners reach about 0.6 staff spaces from its centre.
+      const r = NOTE_CIRCLE_RADIUS * ls;
+      svg.appendChild(
+        el("circle", { cx: x, cy: yHead, r, fill: "none", style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W })
+      );
+    }
   }
 
   // Stem and flags. Stems go up when the note sits below the middle line.

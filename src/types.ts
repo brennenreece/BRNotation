@@ -31,6 +31,9 @@ export interface ScoreNote {
   lyric?: string; // syllable under this note (ABC `w:` line)
   lyricHold?: boolean; // `_` in a lyric line: continues the previous syllable
   articulations?: ("staccato" | "accent" | "tenuto" | "fermata")[];
+  textAbove?: string; // `{above:...}`: small sans-serif text above the note
+  textBelow?: string; // `{below:...}`: small sans-serif text below the note
+  circled?: boolean; // `{circle}`: ring around the notehead
 }
 
 export interface ScoreMeasure {

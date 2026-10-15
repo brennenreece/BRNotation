@@ -222,6 +222,28 @@ w: Hal- le- lu _ jah
 
 Lyrics also work in `coupled` blocks, under the notation staff. A `w:` line that has more syllables than the block has notes is reported as an error.
 
+### Note text and circles
+
+Put a `{...}` block directly after a note to annotate that note. Use it for scale degrees or short performance notes. Text uses the system sans-serif font, and is smaller than chord symbols. Chord symbols and lyrics are separate features.
+
+| Item | Meaning |
+|------|---------|
+| `above:text` | Text centered above the notehead |
+| `below:text` | Text centered below the notehead |
+| `circle` | A ring around the notehead |
+
+Separate items with spaces. Quote text that contains spaces.
+
+```brnotation
+mode: notation
+time: 4/4
+key: C
+
+| c4/q{above:1} d4/q{above:2} e4/q{above:3 below:"sweet"} f4/q{circle} |
+```
+
+Annotations draw on notes in `notation` and `coupled` blocks, above or below the staff. They are not drawn in tab-only blocks yet. A `{...}` block with an unknown item is reported as an error.
+
 ### Multiple measures per line
 
 Lines break by width. The plugin fits as many measures on each line as the minimum note spacing allows, up to 4 (see [Settings](#settings)). Use `per-row:` in chord grids to change this for those blocks.
