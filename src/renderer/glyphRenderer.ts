@@ -322,10 +322,10 @@ function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, head
       const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
       gap = Math.max(gap, widest * tabSize * 0.6 + 6);
     }
-    const accWidth = accidentalWidth(note, size);
+    const accWidth = accidentalWidth(note, size * headScale);
     if (accWidth > 0) {
       // Room for the accidental plus its clearance from the previous note's head.
-      gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size + headHalf * 2 + ACC_PREV_GAP * size);
+      gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size * headScale + headHalf * 2 + ACC_PREV_GAP * size * headScale);
     }
     return gap;
   });
@@ -837,12 +837,13 @@ function layoutMeasureNotes(
     if (!all.length) continue;
     const avgY = all.reduce((a, b) => a + b, 0) / all.length;
     const up = avgY > middleY;
-    // Beamed stems run 3 staff spaces from the notehead farthest from the beam, then the beam is fitted to them.
-    const groupExtreme = up ? Math.max(...all) : Math.min(...all);
+    // The beam must clear every notehead in a chord, so it is placed 3 staff spaces from the head nearest the beam.
+    // Stems still start at the head farthest from the beam and reach up or down to the beam.
+    const groupExtreme = up ? Math.min(...all) : Math.max(...all);
     const natural = g.map((i) => {
       const ys = headYs[i];
-      const farthest = ys.length ? (up ? Math.max(...ys) : Math.min(...ys)) : groupExtreme;
-      return up ? farthest - 3 * lineSpacing : farthest + 3 * lineSpacing;
+      const nearest = ys.length ? (up ? Math.min(...ys) : Math.max(...ys)) : groupExtreme;
+      return up ? nearest - 3 * lineSpacing : nearest + 3 * lineSpacing;
     });
     const stemXs = g.map((i) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2)));
     const tips = fitBeamTips(stemXs, natural, up ? 1 : -1);
@@ -1136,8 +1137,10 @@ function drawNote(
         : p.accidental.includes("b") ? G.accidentalFlat
         : G.accidentalNatural;
       const accEm = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
+      // Accidentals scale with the noteheads so they stay in proportion with the font's head size.
+      const accSize = size * headScale;
       // Right edge sits a small clearance left of the notehead's left edge.
-      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accEm * size, yHead, size, family);
+      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * accSize - accEm * accSize, yHead, accSize, family);
     }
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
   }
