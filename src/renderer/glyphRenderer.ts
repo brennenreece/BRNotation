@@ -675,8 +675,8 @@ const ACC_HEAD_GAP = 0.03;
 const ACC_PREV_GAP = 0.06;
 /** Accidental size relative to the staff glyph size. */
 const ACC_SCALE = 0.7;
-/** Chord accidentals whose notes are closer than this many diatonic steps are staggered. */
-const ACC_STAGGER_STEPS = 3;
+/** Chord accidentals whose notes are within a fourth (this many diatonic steps) are staggered into separate columns. */
+const ACC_STAGGER_STEPS = 4;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
