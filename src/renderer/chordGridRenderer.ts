@@ -26,7 +26,7 @@ const STAFF_BOTTOM_PAD = 24;
 /** Gap kept between the beat slashes and each barline */
 const BEAT_EDGE_INSET = 12;
 const TOP_PAD = 8;
-const BOTTOM_PAD = 12;
+const BOTTOM_PAD = 8;
 const LEFT_PAD = 6;
 const RIGHT_PAD = 10;
 /** Width of the first measure of each system, which holds the time signature */
@@ -91,7 +91,7 @@ export function renderChordGrid(
   const lastStave = new Stave(0, lastStaveY, 10);
   const totalHeight = Math.max(
     TOP_PAD + numRows * rowHeight + BOTTOM_PAD,
-    lastStave.getBottomY() + FUNCTION_BAND + BOTTOM_PAD
+    lastStave.getBottomY() + (score.showFunctions ? FUNCTION_BAND : 0) + BOTTOM_PAD
   );
 
   const svgNS = "http://www.w3.org/2000/svg";

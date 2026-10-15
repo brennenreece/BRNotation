@@ -172,8 +172,8 @@ export function renderGlyphScore(
   // The room is at least the original chord room, so default layouts keep their height.
   const aboveRoom = hasTextAbove && !isTabOnly ? NOTE_TEXT_ROOM * scale : 0;
   const chordRoom = (hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0;
-  const lyricRoom = (hasLyrics || hasTextBelow) && !isTabOnly ? LYRIC_ROOM * scale : 0;
-  const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 20 : staffHeight) + chordRoom + lyricRoom;
+  const lyricRoom = hasLyrics && !isTabOnly ? LYRIC_ROOM * scale : 0;
+  const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 2 : staffHeight) + chordRoom + lyricRoom;
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
   const headScale = options.noteheadScale ?? 1;
@@ -185,7 +185,7 @@ export function renderGlyphScore(
   const { starts: systemStarts, widths: measureWidths } = breakSystems(score, containerWidth, measuresPerLine, isTabOnly, clef, glyphSize, noteGap, noteEndInset, tabSize, headScale, isCoupled);
   const totalLines = systemStarts.length;
   const systemGap = Math.max(0, options.systemGap ?? 20);
-  const totalHeight = totalLines * (blockHeight + systemGap) + 20;
+  const totalHeight = totalLines * (blockHeight + systemGap) + 8;
   // Y of the top staff line in each system, below the chord-symbol room. The room is shared by all
   // systems, so the gap between systems already accounts for chords raised above the staff.
   const staffTop = (lineIndex: number) => 20 + lineIndex * (blockHeight + systemGap) + chordRoom;
@@ -848,6 +848,14 @@ function drawTabMeasure(
       svg.appendChild(
         el("rect", { x: x - w / 2, y: y + numberOffset - h / 2, width: w, height: h, style: "fill: var(--background-primary, #fff)" })
       );
+      if (note.circled) {
+        // Same ring as the notehead. The disc is filled with the background so the
+        // tab line is hidden inside it, and it sits below the number.
+        const r = Math.max(w, h) / 2 + 2;
+        svg.appendChild(
+          el("circle", { cx: x, cy: y + numberOffset, r, style: "fill: var(--background-primary, #fff); stroke: var(--text-normal, #000)", "stroke-width": STEM_W })
+        );
+      }
       const t = el("text", {
         x,
         y: y + numberOffset,

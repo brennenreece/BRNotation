@@ -242,7 +242,7 @@ key: C
 | c4/q{above:1} d4/q{above:2} e4/q{above:3 below:"sweet"} f4/q{circle} |
 ```
 
-Annotations draw on notes in `notation` and `coupled` blocks, above or below the staff. They are not drawn in tab-only blocks yet. A `{...}` block with an unknown item is reported as an error.
+Annotations draw on notes in `notation` and `coupled` blocks. In a coupled block, `circle` also rings the fret number on the tab. Tab-only blocks don't draw annotations yet. A `{...}` block with an unknown item is reported as an error.
 
 ### Multiple measures per line
 

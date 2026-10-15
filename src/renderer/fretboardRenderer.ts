@@ -295,8 +295,9 @@ export function renderFretboardScale(
   svg.setAttribute("viewBox", `0 0 ${containerWidth} ${height}`);
   svg.classList.add("br-diagram-svg", "br-fretboard-svg");
 
-  const padLeft = 45;
-  const padRight = 20;
+  // Left and right match the notation, so a fretboard lines up with the staff above it.
+  const padLeft = 8;
+  const padRight = 8;
   const padTop = 30;
   const padBottom = 36;
 
