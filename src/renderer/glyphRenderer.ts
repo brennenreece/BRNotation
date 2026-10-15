@@ -399,6 +399,20 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
   const minGapAt = (i: number) => minGaps?.[i] ?? NOTE_MIN_GAP;
   const ticks = notes.map(noteQuarters);
   const totalTicks = ticks.reduce((a, b) => a + b, 0);
+
+  // Time-proportional placement: note i starts at the share of the bar its onset represents,
+  // so two half notes put the second chord at beat 3. The bar's span ends at the last note's
+  // minimum clearance. Minimum gaps are enforced left to right; if the result overflows the bar,
+  // fall back to the softmax solver below, which fits the notes to the bar.
+  const timeSpan = Math.max(0, width - minGapAt(n - 1) / 2);
+  const timed = [xStart];
+  let cum = 0;
+  for (let i = 1; i < n; i++) {
+    cum += ticks[i - 1];
+    timed.push(Math.max(xStart + (timeSpan * cum) / totalTicks, timed[i - 1] + minGapAt(i)));
+  }
+  if (timed[n - 1] <= xStart + timeSpan + 1e-6) return timed;
+
   const weights = ticks.map((t) => Math.pow(SPACING_BASE, t / totalTicks));
   const weightSum = weights.reduce((a, b) => a + b, 0);
 
