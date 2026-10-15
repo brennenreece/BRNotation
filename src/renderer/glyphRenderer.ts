@@ -251,15 +251,17 @@ export function renderGlyphScore(
       const mClef = measure.clef || clef;
       const clefCp = mClef === "bass" ? G.fClef : mClef === "alto" || mClef === "tenor" ? G.cClef : G.gClef;
       glyph(svg, clefCp, xPos + 4, clefBaselineY(mClef, y0, lineSpacing), glyphSize, family);
-      const keyX = xPos + 4 + clefWidth(mClef, glyphSize);
+      const clefEnd = xPos + 4 + clefWidth(mClef, glyphSize);
       const key = measure.keySignature || score.keySignature;
-      const keyEnd = key ? drawKeySignature(svg, key, mClef, keyX, y0, glyphSize, lineSpacing, family) : keyX;
-      const ts = measure.timeSignature || score.timeSignature;
-      // VexFlow pads each modifier by 10 px, but the clef and key slots take no padding,
-      // so the time signature starts 10 px after the last key accidental or the clef.
+      const keyX = clefEnd + CLEF_EXTRA_SPACE;
+      const keyEnd = key ? drawKeySignature(svg, key, mClef, keyX, y0, glyphSize, lineSpacing, family) : clefEnd;
+      // The score's time signature shows only at the start of the score; later systems show it only
+      // where a measure changes it.
+      const ts = headerTimeSig(measure, score, lineIndex === 0);
       let headerEnd = keyEnd;
       if (ts) {
-        headerEnd = drawTimeSignature(svg, ts, keyEnd + TIME_SIG_PADDING, y0, glyphSize, lineSpacing, family);
+        const tsX = timeSigX(clefEnd, key ? keyEnd : undefined, ts, glyphSize);
+        headerEnd = drawTimeSignature(svg, ts, tsX, y0, glyphSize, lineSpacing, family);
       }
       noteStartX = headerEnd + noteGap;
     }
@@ -382,13 +384,16 @@ function accidentalLayout(pitches: NotePitch[], size: number): { shifts: number[
 /**
  * Centre x of each note in a measure, shared by the staff and tab rows so they line up.
  *
- * Follows VexFlow's Formatter. The gap after each note is a softmax of its duration,
- * 10^(ticks / total) normalised over the bar, so longer notes get more room without the
- * exaggeration of a linear split. Each gap is at least that note's minimum width, and a
- * single scale factor is solved so the gaps fill the bar exactly. The last note stops
- * `minGap / 2` short of the right edge, which avoids an empty slot before the barline.
+ * Uses a LilyPond-style spring model. Each note gets a spring whose stiffness grows with the
+ * logarithm of its duration, so doubling a note adds the same space rather than doubling it.
+ * The base is the shortest duration in the bar, capped at an eighth note. Every note's spring
+ * also covers the space after it, so the last note's spring is its trailing space before the
+ * barline. Equal notes therefore sit evenly across the bar: two half-note chords put the second
+ * chord at beat 3. Each spring is at least that note's minimum gap, and one scale factor is
+ * solved so the springs fill the bar. If the minimum gaps alone overflow, the notes keep their
+ * minimums and the bar is simply tighter.
  */
-const SPACING_BASE = 10; // VexFlow Tables.SOFTMAX_FACTOR
+const SPACING_BASE_MAX = 0.5; // quarter-note units; an eighth note is the largest base
 
 function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?: number[]): number[] {
   const n = notes.length;
@@ -398,35 +403,17 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
 
   const minGapAt = (i: number) => minGaps?.[i] ?? NOTE_MIN_GAP;
   const ticks = notes.map(noteQuarters);
-  const totalTicks = ticks.reduce((a, b) => a + b, 0);
+  const base = Math.min(SPACING_BASE_MAX, Math.min(...ticks));
+  const springs = ticks.map((t) => 1 + Math.log2(t / base));
 
-  // Time-proportional placement: note i starts at the share of the bar its onset represents,
-  // so two half notes put the second chord at beat 3. The bar's span ends at the last note's
-  // minimum clearance. Minimum gaps are enforced left to right; if the result overflows the bar,
-  // fall back to the softmax solver below, which fits the notes to the bar.
-  const timeSpan = Math.max(0, width - minGapAt(n - 1) / 2);
-  const timed = [xStart];
-  let cum = 0;
-  for (let i = 1; i < n; i++) {
-    cum += ticks[i - 1];
-    timed.push(Math.max(xStart + (timeSpan * cum) / totalTicks, timed[i - 1] + minGapAt(i)));
-  }
-  if (timed[n - 1] <= xStart + timeSpan + 1e-6) return timed;
-
-  const weights = ticks.map((t) => Math.pow(SPACING_BASE, t / totalTicks));
-  const weightSum = weights.reduce((a, b) => a + b, 0);
-
-  // Gap i sits between note i-1 and note i, sized by note i-1's duration.
-  const gapsFor = (scale: number) => {
-    const out: number[] = [];
-    for (let i = 1; i < n; i++) out.push(Math.max(minGapAt(i), (scale * weights[i - 1]) / weightSum));
-    return out;
-  };
-  const span = Math.max(0, width - minGapAt(n - 1) / 2);
+  // Gap j is the space after note j. Its minimum is the next note's min gap, or half the
+  // last note's min gap for the trailing space, which avoids an empty slot before the barline.
+  const minAfter = (j: number) => (j < n - 1 ? minGapAt(j + 1) : minGapAt(n - 1) / 2);
+  // The springs include the trailing gap, so together they fill the whole bar.
+  const span = width;
+  const gapsFor = (scale: number) => springs.map((w, j) => Math.max(minAfter(j), scale * w));
   const sumFor = (scale: number) => gapsFor(scale).reduce((a, b) => a + b, 0);
 
-  // Find the smallest scale whose gaps fill the span. If the minimum gaps alone overflow it,
-  // the notes keep those minimums (scale 0) and the bar is simply tighter than ideal.
   let scale = 0;
   if (sumFor(0) < span) {
     let lo = 0;
@@ -440,7 +427,9 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
     scale = hi;
   }
 
-  for (const gap of gapsFor(scale)) xs.push(xs[xs.length - 1] + gap);
+  // Note i sits after the gaps of notes 0..i-1.
+  const gaps = gapsFor(scale);
+  for (let i = 1; i < n; i++) xs.push(xs[i - 1] + gaps[i - 1]);
   return xs;
 }
 
@@ -484,7 +473,7 @@ function breakSystems(
     const first = score.measures[i];
     const header = isTabOnly
       ? 0
-      : headerWidth(first.clef || clef, first.keySignature || score.keySignature, first.timeSignature || score.timeSignature, glyphSize) + noteGap;
+      : headerWidth(first.clef || clef, first.keySignature || score.keySignature, headerTimeSig(first, score, i === 0), glyphSize) + noteGap;
     let used = header;
     const lineStart = i;
     let count = 0;
@@ -667,12 +656,17 @@ function chordLift(note: ScoreNote, clef: string, lineSpacing: number): number {
 function maxChordLift(score: NotationScore, clef: string, lineSpacing: number): number {
   let lift = 0;
   for (const m of score.measures) {
-    for (const n of m.notes) {
-      if (n.chordSymbol) lift = Math.max(lift, chordLift(n, clef, lineSpacing));
-    }
+    if (!m.notes.some((n) => n.chordSymbol)) continue;
+    for (const n of m.notes) lift = Math.max(lift, chordLift(n, clef, lineSpacing));
   }
   return lift;
 }
+/** Approximate width (px) of a chord symbol drawn at the given scale, from its character count. */
+function chordTextWidth(text: string, scale: number): number {
+  return text.length * CHORD_CHAR_WIDTH * scale;
+}
+/** Average advance (px at scale 1) per character of a chord symbol. */
+const CHORD_CHAR_WIDTH = 9;
 /** Approximate height (px at scale 1) of a chord symbol's text above its baseline. */
 const CHORD_TEXT_HEIGHT = 14;
 const LYRIC_BASELINE_GAP = 16;
@@ -693,7 +687,12 @@ const ACC_SCALE = 0.7;
 const ACC_STAGGER_STEPS = 4;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
-const TIME_SIG_PADDING = 15;
+const KEY_TIME_GAP = 6;
+/**
+ * Fixed space (px at scale 1) after the clef, before the key signature or time signature.
+ * Like LilyPond's non-musical column spacing, it does not stretch with the notes.
+ */
+const CLEF_EXTRA_SPACE = 10;
 
 /** Advance width of each time-signature digit in em, measured from Bravura. */
 const TIME_DIGIT_EM = [0.47, 0.334, 0.446, 0.421, 0.47, 0.44, 0.436, 0.436, 0.436, 0.434];
@@ -705,6 +704,15 @@ const TIME_DIGIT_CENTRE_EM = 0.0075;
  * Returns the x where the time signature ends.
  */
 /**
+ * The time signature shown in a system's header. The score's default is shown only on the first
+ * system; later systems show the time signature only when their first measure changes it.
+ */
+function headerTimeSig(measure: ScoreMeasure, score: NotationScore, firstSystem: boolean): string | undefined {
+  if (measure.timeSignature) return measure.timeSignature;
+  return firstSystem ? score.timeSignature : undefined;
+}
+
+/**
  * Width of the system header that precedes the first notes of a system: clef, key signature,
  * and time signature. Mirrors the positions used when the header is drawn.
  */
@@ -714,22 +722,43 @@ function headerWidth(
   ts: string | undefined,
   size: number
 ): number {
-  let x = 4 + clefWidth(clef, size);
+  const clefEnd = 4 + clefWidth(clef, size);
+  let x = clefEnd;
+  let keyEnd: number | undefined;
   if (key) {
     const root = key.replace(/\s*(major|minor)$/i, "").trim();
     const counts = KEY_COUNTS[root] ?? KEY_COUNTS[root.charAt(0).toUpperCase() + root.slice(1)];
     const n = counts ? ("sharps" in counts ? counts.sharps : counts.flats) : 0;
+    x = clefEnd + CLEF_EXTRA_SPACE;
     if (n > 0) x += n * size * 0.25;
+    keyEnd = x;
   }
   if (ts) {
     const [num, den] = ts.split("/");
     if (num && den) {
-      const textWidth = (text: string) =>
-        [...text].reduce((w, ch) => w + TIME_DIGIT_EM[parseInt(ch, 10)] * size, 0);
-      x += TIME_SIG_PADDING + Math.max(textWidth(num), textWidth(den));
+      x = timeSigX(clefEnd, keyEnd, ts, size) + timeSigWidth(ts, size);
     }
   }
   return x;
+}
+
+/**
+ * Width of a time signature: the wider of its numerator and denominator.
+ */
+function timeSigWidth(ts: string, size: number): number {
+  const [num, den] = ts.split("/");
+  const textWidth = (text: string) =>
+    [...text].reduce((w, ch) => w + TIME_DIGIT_EM[parseInt(ch, 10)] * size, 0);
+  return Math.max(textWidth(num), textWidth(den));
+}
+
+/**
+ * Left edge of the time signature. Without a key signature it sits one time-signature width
+ * after the clef; with one, it follows the key signature after a small fixed gap.
+ */
+function timeSigX(clefEnd: number, keyEnd: number | undefined, ts: string, size: number): number {
+  if (keyEnd === undefined) return clefEnd + timeSigWidth(ts, size);
+  return keyEnd + KEY_TIME_GAP;
 }
 
 function drawTimeSignature(
@@ -922,8 +951,14 @@ function drawNoteTexts(
   const lyricSize = LYRIC_FONT_SIZE * scale;
   notes.forEach((note, i) => {
     if (note.chordSymbol && chordRoom) {
-      // Left-aligned at the notehead, sitting above the chord's highest notehead when that rises above the staff.
-      const lift = chordLift(note, clef, lineSpacing);
+      // Left-aligned at the notehead. The label is raised above the highest notehead under its whole
+      // width (up to the next chord symbol), so a higher note to its right cannot collide with it.
+      const textEnd = xs[i] - headHalfWidth + chordTextWidth(note.chordSymbol, scale);
+      let lift = chordLift(note, clef, lineSpacing);
+      for (let j = i + 1; j < notes.length && xs[j] - headHalfWidth < textEnd; j++) {
+        if (notes[j].chordSymbol) break;
+        lift = Math.max(lift, chordLift(notes[j], clef, lineSpacing));
+      }
       const baseline = y0 - chordDistance - lift;
       const t = el("text", { x: xs[i] - headHalfWidth, y: baseline, "text-anchor": "start" });
       applyChordTextStyle(t);
