@@ -322,10 +322,10 @@ function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, head
       const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
       gap = Math.max(gap, widest * tabSize * 0.6 + 6);
     }
-    const accWidth = accidentalWidth(note, size * headScale);
+    const accWidth = accidentalWidth(note, size);
     if (accWidth > 0) {
       // Room for the accidental plus its clearance from the previous note's head.
-      gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size * headScale + headHalf * 2 + ACC_PREV_GAP * size * headScale);
+      gap = Math.max(gap, accWidth + ACC_HEAD_GAP * size + headHalf * 2 + ACC_PREV_GAP * size);
     }
     return gap;
   });
@@ -347,7 +347,7 @@ function accidentalWidth(note: ScoreNote, size: number): number {
   for (const p of note.pitches) {
     if (!p.accidental) continue;
     const em = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
-    widest = Math.max(widest, em * size);
+    widest = Math.max(widest, em * size * ACC_SCALE);
   }
   return widest;
 }
@@ -646,6 +646,8 @@ const NOTE_MIN_GAP = 14;
 const ACC_EM = { sharp: 0.249, flat: 0.226, natural: 0.168 };
 const ACC_HEAD_GAP = 0.03;
 const ACC_PREV_GAP = 0.06;
+/** Accidental size relative to the staff glyph size. */
+const ACC_SCALE = 0.7;
 
 /** Gap before the time signature. VexFlow's TimeSignature defaults customPadding to 15. */
 const TIME_SIG_PADDING = 15;
@@ -837,13 +839,12 @@ function layoutMeasureNotes(
     if (!all.length) continue;
     const avgY = all.reduce((a, b) => a + b, 0) / all.length;
     const up = avgY > middleY;
-    // The beam must clear every notehead in a chord, so it is placed 3 staff spaces from the head nearest the beam.
-    // Stems still start at the head farthest from the beam and reach up or down to the beam.
-    const groupExtreme = up ? Math.min(...all) : Math.max(...all);
+    // Beamed stems run 3 staff spaces from the notehead farthest from the beam, then the beam is fitted to them.
+    const groupExtreme = up ? Math.max(...all) : Math.min(...all);
     const natural = g.map((i) => {
       const ys = headYs[i];
-      const nearest = ys.length ? (up ? Math.min(...ys) : Math.max(...ys)) : groupExtreme;
-      return up ? nearest - 3 * lineSpacing : nearest + 3 * lineSpacing;
+      const farthest = ys.length ? (up ? Math.max(...ys) : Math.min(...ys)) : groupExtreme;
+      return up ? farthest - 3 * lineSpacing : farthest + 3 * lineSpacing;
     });
     const stemXs = g.map((i) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2)));
     const tips = fitBeamTips(stemXs, natural, up ? 1 : -1);
@@ -1137,10 +1138,10 @@ function drawNote(
         : p.accidental.includes("b") ? G.accidentalFlat
         : G.accidentalNatural;
       const accEm = p.accidental.includes("#") ? ACC_EM.sharp : p.accidental.includes("b") ? ACC_EM.flat : ACC_EM.natural;
-      // Accidentals scale with the noteheads so they stay in proportion with the font's head size.
-      const accSize = size * headScale;
+      // Accidentals are drawn smaller than the notehead so they don't compete with it.
+      const accSize = size * ACC_SCALE;
       // Right edge sits a small clearance left of the notehead's left edge.
-      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * accSize - accEm * accSize, yHead, accSize, family);
+      glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accEm * accSize, yHead, accSize, family);
     }
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
   }
@@ -1152,8 +1153,9 @@ function drawNote(
     const stemLen = 3.5 * ls;
     const extreme = stemUp ? Math.min(...ys) : Math.max(...ys);
     const sx = stemUp ? x + headW / 2 - STEM_W / 2 : x - headW / 2 + STEM_W / 2;
-    // Beamed stems start at the notehead farthest from the beam and end at the beam.
-    const sy1 = beam ? (stemUp ? Math.max(...ys) : Math.min(...ys)) : extreme;
+    // The stem starts at the head farthest from its tip so it touches every head in a chord.
+    const far = stemUp ? Math.max(...ys) : Math.min(...ys);
+    const sy1 = far;
     const sy2 = beam ? beam.tipY : stemUp ? extreme - stemLen : extreme + stemLen;
     svg.appendChild(
       el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W })
