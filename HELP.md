@@ -1,4 +1,4 @@
-# BRNotation User Guide
+x# BRNotation User Guide
 
 BRNotation renders music notation, guitar tablature, chord charts, chord diagrams, and fretboard scale maps inside Obsidian notes. You write a short text description inside a code block, and the plugin draws it as a score or diagram.
 
@@ -9,7 +9,7 @@ BRNotation renders music notation, guitar tablature, chord charts, chord diagram
 3. [Standard notation](#standard-notation)
 4. [Tablature](#tablature)
 5. [Coupled notation and tablature](#coupled-notation-and-tablature)
-6. [Chord grids](#chord-grids)
+6. [Chord charts](#chord-charts)
 7. [Chord diagrams](#chord-diagrams)
 8. [Fretboard scale maps](#fretboard-scale-maps)
 9. [Barline reference](#barline-reference)
@@ -64,14 +64,14 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 
 | Key | Used by | Meaning |
 |---|---|---|
-| `mode:` or `type:` | all | One of `notation`, `tab`, `coupled`, `chordgrid`, `chord`, `fretboard`. |
-| `title:` | notation, tab, coupled, chordgrid, fretboard | Title shown above the output. |
-| `time:` | notation, tab, coupled, chordgrid | Time signature, such as `4/4`, `3/4`, `6/8`. In chordgrid blocks, add `visible = false` after it (`time: 4/4 visible = false`) to hide the signature. |
+| `mode:` or `type:` | all | One of `notation`, `tab`, `coupled`, `chordchart`, `chord`, `fretboard`. `chordgrid` is accepted as an alias for `chordchart`. |
+| `title:` | notation, tab, coupled, chordchart, fretboard | Title shown above the output. |
+| `time:` | notation, tab, coupled, chordchart | Time signature, such as `4/4`, `3/4`, `6/8`. In chordchart blocks, add `visible = false` after it (`time: 4/4 visible = false`) to hide the signature. |
 | `key:` | notation, coupled | Key signature, such as `C`, `G`, `Bb`, `F#m`. |
 | `clef:` | notation, coupled | `treble`, `bass`, or `alto`. Defaults to the setting in Settings. |
 | `glyphs:` | notation, coupled | `font` (default) draws the staff with the music font's glyphs (noteheads, clefs, flags, rests, accidentals). Coupled blocks also draw the tab in the same drawing. `vexflow` keeps VexFlow's built-in shapes. Tab-only blocks always use the font drawing, so their tab matches coupled tab. Beams in `font` mode group 8ths every two beats (every beat in compound meters like 6/8), triplets and 16ths and 32nds every beat. Rests and longer notes break a group, and groups never cross a barline. |
 | `tuning:` | tab, coupled, chord, fretboard | A tuning name from [Tunings and scales](#tunings-and-scales). |
-| `per-row:` or `perrow:` | chordgrid | Measures per row. |
+| `per-row:` or `perrow:` | chordchart | Measures per row. |
 | `name:` or `chord:` | chord | Chord name shown above the diagram. |
 | `frets:` | chord | Fret for each string, or `x` to mute. |
 | `fingers:` | chord | Finger number for each string, or `-` for none. |
@@ -147,6 +147,7 @@ c4/8t     C, triplet eighth note (three in the time of two)
 - Add `t` after the duration for a triplet note, such as `c4/8t` or `d4/16t`. Three triplet eighths fill one beat.
 - Use `:8t` on its own to make every following note a triplet eighth until a plain duration directive such as `:8` or `:q`. For example, `| :8t g4 g4 g4 | :8 c4 d4 |`.
 - Wrap notes in `< >` to beam them together as one group, such as `| :8t <g4 g4 g4> <g4 g4 g4> |`. Notes outside `< >` use the automatic beaming rules. A group should not cross a barline.
+- Add `~` after a note to tie it to the next note of the same pitch, such as `| :8t <g4~ g4 g4> |` or `| c4/h~ c4/h |`. The tie is drawn as an arc on both the staff and the tab. A tie that reaches a barline is drawn as a short arc at the measure's right edge.
 - Octave 4 is the octave that starts at middle C.
 
 ### Rests
@@ -337,12 +338,12 @@ key: G
 
 ---
 
-## Chord grids
+## Chord charts
 
-Use `type: chordgrid` for a chord chart. Chords sit above a staff with the same barlines as staff notation, and each beat gets a slash.
+Use `type: chordchart` for a chord chart. Older blocks that use `type: chordchart` still render the same way. Chords sit above a staff with the same barlines as staff notation, and each beat gets a slash.
 
 ```brnotation
-type: chordgrid
+type: chordchart
 title: 12-Bar Blues
 time: 4/4
 per-row: 4
@@ -365,7 +366,7 @@ per-row: 4
 - `time: 4/4 visible = false` hides the time signature. The grid still uses 4/4 for the beat slashes.
 
 ```brnotation
-type: chordgrid
+type: chordchart
 time: 3/4 visible = false
 per-row: 3
 
@@ -373,7 +374,7 @@ per-row: 3
 ```
 
 ```brnotation
-type: chordgrid
+type: chordchart
 title: Simple Verse
 time: 3/4
 per-row: 2
@@ -390,7 +391,7 @@ Add `chord function = true` to show a roman-numeral label under each chord. Set 
 To write the functional harmony directly, type roman numerals as the chords. Use uppercase for major, lowercase for minor, and `b` or `#` for chromatic degrees (`bVII` shows as ♭VII):
 
 ```brnotation
-type: chordgrid
+type: chordchart
 time: 4/4
 per-row: 4
 
@@ -400,7 +401,7 @@ per-row: 4
 ```
 
 ```brnotation
-type: chordgrid
+type: chordchart
 title: Simple Verse
 time: 4/4
 key: C
@@ -419,7 +420,7 @@ Numerals use uppercase for major chords and lowercase for minor and diminished c
 Measure numbers are hidden by default. Add `measure numbers = true` to show a small number in the top-left corner of each measure.
 
 ```brnotation
-type: chordgrid
+type: chordchart
 title: Simple Verse
 time: 4/4
 measure numbers = true
@@ -759,7 +760,7 @@ Open **Settings → BRNotation** to change these options.
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord box font | System default | Font for chord names above chord boxes. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). A block's `chord-font:` overrides it. |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
-| Diagram dot style | Classic | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
+| Diagram dot style | Inverted | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
 | Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |
 | Tab number font | System default | Font for fret numbers on tablature. Options: System default, Monospace, Serif, JulesJazz (jazz), MuseJazz (jazz). |
 | Tab number font size | 13 | Size in points for fret numbers on tablature (8–24). Tab lines widen automatically when the numbers are large enough to overlap in chords. |
@@ -784,7 +785,7 @@ Changes to the staff font apply to blocks rendered after the change. Reopen or r
 Example chord chart. With **Chord symbol font** set to JulesJazz, the chord names use the jazz font:
 
 ```brnotation
-type: chordgrid
+type: chordchart
 time: 4/4
 
 | Bbmaj7 | Gm7 C7 | Fmaj7 | Fmaj7 |

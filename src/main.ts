@@ -111,7 +111,7 @@ export default class BRNotationPlugin extends Plugin {
       id: "insert-chord-grid",
       name: "Insert chord grid",
       editorCallback: (editor: Editor) => {
-        const sample = "```brnotation\ntype: chordgrid\ntitle: 12-Bar Blues\ntime: 4/4\nper-row: 4\n\n[Blues]\n|: C7 | F7 | C7 | C7 :|\n| F7 | F7 | C7 | A7 |\n| Dm7 | G7 | C7 A7 | Dm7 G7 |\n```\n";
+        const sample = "```brnotation\ntype: chordchart\ntitle: 12-Bar Blues\ntime: 4/4\nper-row: 4\n\n[Blues]\n|: C7 | F7 | C7 | C7 :|\n| F7 | F7 | C7 | A7 |\n| Dm7 | G7 | C7 A7 | Dm7 G7 |\n```\n";
         editor.replaceSelection(sample);
       },
     });

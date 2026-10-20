@@ -72,6 +72,9 @@ const STAFF_LINE_COUNT = 5;
 const STEM_W = 1.5;
 /** Ledger overhang past each side of the notehead in px, matching VexFlow's LEDGER_LINE_OFFSET. */
 const LEDGER_OVERHANG = 3;
+/** Bravura notehead advance widths in em (black/half and whole). */
+const HEAD_ADVANCE_BLACK = 0.295;
+const HEAD_ADVANCE_WHOLE = 0.422;
 
 /** Diatonic step index: c=0 … b=6. Used to place notes on the staff. */
 const STEP_INDEX: Record<string, number> = { c: 0, d: 1, e: 2, f: 3, g: 4, a: 5, b: 6 };
@@ -148,18 +151,18 @@ export function renderGlyphScore(
 
   // One staff space in px. The staff is four spaces tall.
   const lineSpacing = 10 * scale;
-  const staffHeight = 4 * lineSpacing + 40;
   const isCoupled = score.mode === "coupled";
   // Tab-only blocks draw just the tab row, with no staff above it.
   const isTabOnly = score.mode === "tab";
+  // Room below the staff for notes that drop beneath it (ledger lines and their stems). Zero when none do.
+  const staffBelow = !isTabOnly && !isCoupled ? staffDrop(score, clef, lineSpacing) : 0;
+  const staffHeight = 4 * lineSpacing + staffBelow;
   const numStrings = score.tuning.length || 6;
   // Tab strings share the staff's line spacing so the two read as one grid, but never tighter
   // than a fret number's height plus a small margin, so stacked chord numbers do not overlap.
   const tabSize = options.tabFontSize ?? 13;
   const tabSpacing = Math.max(lineSpacing, tabSize * 0.72 + 2);
   const tabHeight = (numStrings - 1) * tabSpacing;
-  // Gap between the staff and its tab row in coupled blocks.
-  const COUPLED_STAFF_TAB_GAP = 60;
   const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
   // Chord symbols sit above the staff and lyrics below it. Room is only reserved when the score uses them.
   const hasChords = score.measures.some((m) => m.notes.some((n) => n.chordSymbol));
@@ -172,7 +175,8 @@ export function renderGlyphScore(
   // The room is at least the original chord room, so default layouts keep their height.
   const aboveRoom = hasTextAbove && !isTabOnly ? NOTE_TEXT_ROOM * scale : 0;
   const chordRoom = (hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0;
-  const lyricRoom = hasLyrics && !isTabOnly ? LYRIC_ROOM * scale : 0;
+  // Below-staff room is reserved for lyrics and for {below:} note text.
+  const lyricRoom = (hasLyrics || hasTextBelow) && !isTabOnly ? LYRIC_ROOM * scale : 0;
   const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 2 : staffHeight) + chordRoom + lyricRoom;
   const tabFont = options.tabFontFamily ?? family;
   const tabNumberOffset = options.tabNumberOffset ?? 0;
@@ -278,7 +282,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize));
+    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize), scale);
     // Chord symbols sit above the staff. Lyrics sit below the notation staff (in coupled blocks, above the tab).
     drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom, clef, chordDistance, glyphSize * 0.3 * headScale / 2);
 
@@ -665,6 +669,31 @@ function maxChordLift(score: NotationScore, clef: string, lineSpacing: number): 
   }
   return lift;
 }
+/**
+ * How far (px) notes reach below the bottom staff line, including ledger lines and a stem's tail.
+ * Returns 0 when every note sits on or above the staff, so no extra bottom room is reserved.
+ */
+function staffDrop(score: NotationScore, clef: string, lineSpacing: number): number {
+  const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
+  const bottomRel = 4 * lineSpacing;
+  const middleRel = 2 * lineSpacing;
+  const stemLength = 3.5 * lineSpacing;
+  let lowest = 0;
+  for (const m of score.measures) {
+    for (const n of m.notes) {
+      if (n.isRest || !n.pitches?.length) continue;
+      for (const p of n.pitches) {
+        const yHead = bottomRel - ((stepOf(p) - bottomStep) * lineSpacing) / 2;
+        lowest = Math.max(lowest, yHead + lineSpacing / 2 - bottomRel);
+        // Heads above the middle line take stems that hang down from the head.
+        if (yHead < middleRel && n.duration !== "w") {
+          lowest = Math.max(lowest, yHead + stemLength - bottomRel);
+        }
+      }
+    }
+  }
+  return lowest > 0 ? Math.ceil(lowest) + 4 : 0;
+}
 /** Approximate width (px) of a chord symbol drawn at the given scale, from its character count. */
 function chordTextWidth(text: string, scale: number): number {
   return text.length * CHORD_CHAR_WIDTH * scale;
@@ -674,6 +703,8 @@ const CHORD_CHAR_WIDTH = 9;
 /** Approximate height (px at scale 1) of a chord symbol's text above its baseline. */
 const CHORD_TEXT_HEIGHT = 14;
 const LYRIC_BASELINE_GAP = 16;
+/** Gap between the staff and its tab row in coupled blocks. */
+const COUPLED_STAFF_TAB_GAP = 60;
 const LYRIC_FONT_SIZE = 13;
 /** Font size (px at scale 1) and extra height for `{above:}` text, which is smaller than chord symbols. */
 const NOTE_TEXT_FONT_SIZE = 11;
@@ -682,8 +713,8 @@ const NOTE_TEXT_ROOM = 14;
 const NOTE_CIRCLE_RADIUS = 0.85;
 
 const NOTE_GAP = 12;
-/** Space kept before each measure's right barline. VexFlow reserves 22 px (12 + 10). */
-const NOTE_END_INSET = 22;
+/** Space kept before each measure's right barline, about half of VexFlow's 22 px. */
+const NOTE_END_INSET = 11;
 /** Minimum horizontal space per note, so dense measures still fit. */
 const NOTE_MIN_GAP = 14;
 /** Bravura accidental advance widths in em, and the clearances used around them. */
@@ -870,6 +901,31 @@ function drawTabMeasure(
       svg.appendChild(t);
     }
   });
+
+  // Tab-note {above:} text sits just over the top string. {below:} is drawn under the staff notehead.
+  const textSize = NOTE_TEXT_FONT_SIZE * (size / 13);
+  measure.notes.forEach((note, i) => {
+    if (note.isRest) return;
+    if (note.textAbove) svg.appendChild(noteText(centres[i], tabY0 - size * 0.9, note.textAbove, textSize));
+  });
+
+  // Tab ties join the same string and fret across notes that share a position.
+  const tabRight = xPos + measureWidth;
+  measure.notes.forEach((note, i) => {
+    if (!note.tied || note.isRest) return;
+    const x1 = centres[i] + size * 0.3;
+    const next = measure.notes[i + 1];
+    const nextPos = next && !next.isRest ? tabPositionsFor(next, tuning) : [];
+    const here = tabPositionsFor(note, tuning);
+    const samePos =
+      nextPos.length === here.length && here.every((p, k) => nextPos[k]?.str === p.str && nextPos[k]?.fret === p.fret);
+    const x2 = samePos ? centres[i + 1] - size * 0.3 : Math.min(x1 + 2 * tabSpacing, tabRight);
+    for (const { str } of here) {
+      const y = tabY0 + (str - 1) * tabSpacing + numberOffset + size * 0.5;
+      const d = `M ${x1} ${y} Q ${(x1 + x2) / 2} ${y + tabSpacing * 0.5} ${x2} ${y}`;
+      svg.appendChild(el("path", { d, fill: "none", style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W }));
+    }
+  });
 }
 
 /** Tab string/fret pairs for a note, using the same rules as the VexFlow coupled tab. */
@@ -907,7 +963,8 @@ function layoutMeasureNotes(
   lineSpacing: number,
   timeSig: string,
   headScale: number,
-  minGaps?: number[]
+  minGaps?: number[],
+  scale = 1
 ): number[] {
   const notes = measure.notes;
   if (!notes.length) return [];
@@ -946,7 +1003,99 @@ function layoutMeasureNotes(
   for (const g of groups) {
     drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing, headScale);
   }
+  drawTies(svg, notes, xs, headYs, headW, width, xStart, lineSpacing);
+  drawTupletLabels(svg, notes, xs, groups, beamed, family, LYRIC_FONT_SIZE * scale, lineSpacing, headYs, middleY);
   return xs;
+}
+
+/**
+ * Labels each tuplet group with a "3" centred over its beam, or over the stem of an unbeamed tuplet
+ * note. A group is labelled only when every note in it is a tuplet.
+ */
+function drawTupletLabels(
+  svg: SVGElement,
+  notes: ScoreNote[],
+  xs: number[],
+  groups: number[][],
+  beamed: Map<number, BeamStem>,
+  family: string,
+  labelSize: number,
+  ls: number,
+  headYs: number[][],
+  middleY: number
+): void {
+  const label = (x: number, y: number) => {
+    const t = el("text", {
+      x,
+      y,
+      "dominant-baseline": "auto",
+      "font-family": family,
+      "font-size": labelSize,
+      "font-style": "italic",
+      "text-anchor": "middle",
+      style: "fill: var(--text-normal, #000)",
+    }) as SVGTextElement;
+    t.textContent = "3";
+    svg.appendChild(t);
+  };
+  const grouped = new Set<number>();
+  for (const g of groups) {
+    if (!g.every((i) => notes[i].tuplet)) continue;
+    g.forEach((i) => grouped.add(i));
+    const first = beamed.get(g[0]);
+    if (!first) continue;
+    // The beam's outer edge sits at the stem tip, so the label goes just beyond it.
+    const midX = (xs[g[0]] + xs[g[g.length - 1]]) / 2;
+    const up = first.up;
+    const y = up ? first.tipY - ls * 0.6 : first.tipY + labelSize + ls * 0.6;
+    label(midX, y);
+  }
+  // Unbeamed tuplet notes (e.g. quarter-note triplets) get a label above or below the stem tip.
+  notes.forEach((note, i) => {
+    if (!note.tuplet || note.isRest || grouped.has(i)) return;
+    const ys = headYs[i];
+    if (!ys.length) return;
+    const up = ys.reduce((a, b) => a + b, 0) / ys.length > middleY;
+    const extreme = up ? Math.min(...ys) : Math.max(...ys);
+    const tip = up ? extreme - 3.5 * ls : extreme + 3.5 * ls;
+    label(xs[i], up ? tip - ls * 0.6 : tip + labelSize + ls * 0.6);
+  });
+}
+
+/**
+ * Draws a tie arc for each tied note. The arc runs from the note's head to the next note's head
+ * when both share the same pitches; otherwise it runs a short distance off the note's right edge.
+ */
+function drawTies(
+  svg: SVGElement,
+  notes: ScoreNote[],
+  xs: number[],
+  headYs: number[][],
+  headW: number,
+  width: number,
+  xStart: number,
+  ls: number
+): void {
+  const rightLimit = xStart + width;
+  notes.forEach((note, i) => {
+    if (!note.tied || note.isRest) return;
+    const ys = headYs[i];
+    if (!ys.length) return;
+    const next = notes[i + 1];
+    const nextYs = next && !next.isRest ? headYs[i + 1] : undefined;
+    const samePitch =
+      !!nextYs && nextYs.length === ys.length && ys.every((y, k) => Math.abs(y - nextYs[k]) < 0.01);
+    const x1 = xs[i] + headW / 2;
+    const x2 = samePitch ? xs[i + 1] - headW / 2 : Math.min(x1 + 2 * ls, rightLimit);
+    // Arcs bow downward, the usual default for ties on the staff.
+    const bulge = ls * 0.6;
+    for (const y of ys) {
+      const sy = y + ls * 0.4;
+      const cy = sy + bulge;
+      const d = `M ${x1} ${sy} Q ${(x1 + x2) / 2} ${cy} ${x2} ${sy}`;
+      svg.appendChild(el("path", { d, fill: "none", style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W }));
+    }
+  });
 }
 
 /** A small sans-serif label centered on x, using the system UI font. */
@@ -978,6 +1127,7 @@ function lowestNoteheadY(
 ): number {
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomRel = y0 + 4 * lineSpacing;
+  const middleRel = y0 + 2 * lineSpacing;
   const halfSpan = headHalfWidth * 2;
   let lowest = y0;
   notes.forEach((n, j) => {
@@ -985,7 +1135,11 @@ function lowestNoteheadY(
     if (Math.abs(xs[j] - xs[i]) > halfSpan) return;
     for (const p of n.pitches) {
       const yHead = bottomRel - ((stepOf(p) - bottomStep) * lineSpacing) / 2;
-      lowest = Math.max(lowest, yHead);
+      lowest = Math.max(lowest, yHead + lineSpacing / 2);
+      // A stem hanging from a head above the middle line runs down through the label.
+      if (yHead < middleRel && n.duration !== "w") {
+        lowest = Math.max(lowest, yHead + 3.5 * lineSpacing);
+      }
     }
   });
   return lowest;
@@ -1017,16 +1171,9 @@ function drawNoteTexts(
       svg.appendChild(noteText(xs[i], baseline, note.textAbove, noteTextSize));
     }
     if (note.textBelow && lyricRoom) {
-      // Clears any notehead below the staff in this measure (such as a low A3) at the same x.
+      // Sits under the note's own lowest point (notehead, ledger lines, or stem tail), not in the lyric row.
       const lowest = lowestNoteheadY(notes, xs, i, y0, lineSpacing, clef, headHalfWidth);
-      if (lowest > staffBottom) {
-        // Sits just under the lowest notehead in its span, rather than at the usual lyric position.
-        const baseline = lowest + lineSpacing / 2 + 2 * scale + noteTextSize * 0.8;
-        svg.appendChild(noteText(xs[i], baseline, note.textBelow, noteTextSize));
-        return;
-      }
-      const lyricOffset = note.lyric ? lyricSize + 2 * scale : 0;
-      const baseline = staffBottom + LYRIC_BASELINE_GAP * scale + noteTextSize * 0.8 - lyricOffset;
+      const baseline = Math.max(lowest, staffBottom) + 2 * scale + noteTextSize * 0.8;
       svg.appendChild(noteText(xs[i], baseline, note.textBelow, noteTextSize));
     }
     if (note.chordSymbol && chordRoom) {
@@ -1291,7 +1438,8 @@ function drawNote(
     note.duration === "w" ? G.noteheadWhole
     : note.duration === "h" ? G.noteheadHalf
     : G.noteheadBlack;
-  const headW = size * 0.3 * headScale;
+  const headAdvance = note.duration === "w" ? HEAD_ADVANCE_WHOLE : HEAD_ADVANCE_BLACK;
+  const headW = headAdvance * size * headScale;
 
   const accShifts = accidentalLayout(pitches, size).shifts;
   const ys: number[] = [];
@@ -1312,6 +1460,7 @@ function drawNote(
       // Right edge sits a small clearance left of the notehead's left edge, staggered in chords.
       glyph(svg, acc, x - headW / 2 - ACC_HEAD_GAP * size - accShifts[pi] - accEm * accSize, yHead, accSize, family);
     }
+    // Centre the glyph's advance width on x so ledgers line up with the head.
     glyph(svg, head, x - headW / 2, yHead, size * headScale, family);
     if (note.circled) {
       // Ring just outside the head so it encloses the notehead without overlapping it.

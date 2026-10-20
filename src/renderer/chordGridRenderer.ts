@@ -25,8 +25,8 @@ const STAFF_SPACE = 10;
 const STAFF_BOTTOM_PAD = 24;
 /** Gap kept between the beat slashes and each barline */
 const BEAT_EDGE_INSET = 12;
-const TOP_PAD = 8;
-const BOTTOM_PAD = 8;
+const TOP_PAD = 2;
+const BOTTOM_PAD = 2;
 const LEFT_PAD = 6;
 const RIGHT_PAD = 10;
 /** Width of the first measure of each system, which holds the time signature */

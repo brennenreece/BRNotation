@@ -142,8 +142,10 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
 
     if (lower.startsWith("type:") || lower.startsWith("mode:")) {
       const val = trimmed.split(":")[1].trim().toLowerCase() as BlockMode;
-      if (["notation", "tab", "coupled", "chordgrid", "chord", "fretboard"].includes(val)) {
-        mode = val;
+      // "chordchart" is the preferred name; "chordgrid" stays valid for existing blocks.
+      const normalized = val === ("chordchart" as string) ? "chordgrid" : val;
+      if (["notation", "tab", "coupled", "chordgrid", "chord", "fretboard"].includes(normalized)) {
+        mode = normalized as BlockMode;
       }
       continue;
     }
