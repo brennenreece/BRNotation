@@ -145,6 +145,8 @@ c4/8t     C, triplet eighth note (three in the time of two)
 
 - Accidentals are `#` (sharp) and `b` (flat).
 - Add `t` after the duration for a triplet note, such as `c4/8t` or `d4/16t`. Three triplet eighths fill one beat.
+- Use `:8t` on its own to make every following note a triplet eighth until a plain duration directive such as `:8` or `:q`. For example, `| :8t g4 g4 g4 | :8 c4 d4 |`.
+- Wrap notes in `< >` to beam them together as one group, such as `| :8t <g4 g4 g4> <g4 g4 g4> |`. Notes outside `< >` use the automatic beaming rules. A group should not cross a barline.
 - Octave 4 is the octave that starts at middle C.
 
 ### Rests
@@ -384,6 +386,18 @@ per-row: 2
 ### Roman-numeral functions
 
 Add `chord function = true` to show a roman-numeral label under each chord. Set `key:` so the numerals are relative to the right tonic. Without `chord function = true`, no labels appear.
+
+To write the functional harmony directly, type roman numerals as the chords. Use uppercase for major, lowercase for minor, and `b` or `#` for chromatic degrees (`bVII` shows as ♭VII):
+
+```brnotation
+type: chordgrid
+time: 4/4
+per-row: 4
+
+|: I7 | I7 | I7 | I7 |
+| IV7 | IV7 | I7 | I7 |
+| V7 | V7 | I7 | I7 :|
+```
 
 ```brnotation
 type: chordgrid

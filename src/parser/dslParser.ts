@@ -470,7 +470,8 @@ function parseNotationContent(
   // Split into segments at barline tokens, keeping each barline as its own token.
   // Longest tokens first so ":|:" and "|:" are not read as "|" or ":".
   const fullContent = lines.join(" ");
-  const parts = fullContent.split(/(:\|:|\|\||\|:|:\||\|\.|\||\\)/);
+  // `:|.` is read as a plain repeat end, so its trailing dot is absorbed rather than read as a note.
+  const parts = fullContent.split(/(:\|:|\|\||\|:|:\|\.|:\||\|\.|\||\\)/).map((p) => (p === ":|." ? ":|" : p));
 
   // A barline token closes the current measure and opens the next one,
   // e.g. ":|:" is a repeat-end on the left and a repeat-begin on the right.
@@ -479,6 +480,11 @@ function parseNotationContent(
   let pendingSystemBreak = false;
   let segment = "";
   let stickyDuration: DurationType = "q";
+  // `:8t` makes following notes triplets until the next duration directive.
+  let stickyTuplet = false;
+  // `<` opens an explicit beam group and `>` closes it. Notes inside share one group id.
+  let beamGroupCount = 0;
+  let openBeamGroup: number | undefined;
   // A chord symbol ("Am7") labels the next note or rest, wherever it appears in the bar.
   // It is carried forward across barlines until a note takes it, so it never occupies a beat.
   let pendingChord: string | undefined;
@@ -486,10 +492,28 @@ function parseNotationContent(
     const trimmed = segment.trim();
     segment = "";
     const notes: ScoreNote[] = [];
-    for (const token of tokenizeMeasure(trimmed)) {
-      const dirMatch = token.match(/^:([whq]|8|16|32)$/i);
+    for (let token of tokenizeMeasure(trimmed)) {
+      let opens = false;
+      let closes = false;
+      if (token.startsWith("<")) {
+        opens = true;
+        token = token.slice(1);
+      }
+      if (token.endsWith(">")) {
+        closes = true;
+        token = token.slice(0, -1);
+      }
+      if (opens) {
+        openBeamGroup = beamGroupCount++;
+      }
+      if (!token) {
+        if (closes) openBeamGroup = undefined;
+        continue;
+      }
+      const dirMatch = token.match(/^:([whq]|8|16|32)(t?)$/i);
       if (dirMatch) {
         stickyDuration = dirMatch[1].toLowerCase() as DurationType;
+        stickyTuplet = dirMatch[2] === "t" || dirMatch[2] === "T";
         continue;
       }
       if (token.startsWith('"') && token.endsWith('"')) {
@@ -497,6 +521,9 @@ function parseNotationContent(
         continue;
       }
       const scoreNote = parseNoteToken(token, mode, stickyDuration);
+      if (scoreNote && stickyTuplet) scoreNote.tuplet = true;
+      if (scoreNote && openBeamGroup !== undefined) scoreNote.beamGroup = openBeamGroup;
+      if (closes) openBeamGroup = undefined;
       if (scoreNote) {
         if (pendingChord !== undefined) {
           scoreNote.chordSymbol = pendingChord;

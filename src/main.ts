@@ -58,7 +58,7 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   spacingScale: 1,
   systemGap: 20,
   chordDistance: 8,
-  diagramStyle: "classic",
+  diagramStyle: "inverted",
 };
 
 export default class BRNotationPlugin extends Plugin {
@@ -99,7 +99,7 @@ export default class BRNotationPlugin extends Plugin {
     // Command: Insert coupled notation + tab
     this.addCommand({
       id: "insert-coupled-notation-tab",
-      name: "Insert coupled notation and tab block",
+      name: "Insert coupled notation",
       editorCallback: (editor: Editor) => {
         const sample = "```brnotation\nmode: coupled\ntitle: Autumn Leaves Theme\ntime: 4/4\nkey: G\n\n| :q e4(1/1) f#4(2/1) g4(3/1) a4(5/1) | :h f#4(2/1) d4(0/2) |\n```\n";
         editor.replaceSelection(sample);
@@ -109,7 +109,7 @@ export default class BRNotationPlugin extends Plugin {
     // Command: Insert chord grid
     this.addCommand({
       id: "insert-chord-grid",
-      name: "Insert chord chart",
+      name: "Insert chord grid",
       editorCallback: (editor: Editor) => {
         const sample = "```brnotation\ntype: chordgrid\ntitle: 12-Bar Blues\ntime: 4/4\nper-row: 4\n\n[Blues]\n|: C7 | F7 | C7 | C7 :|\n| F7 | F7 | C7 | A7 |\n| Dm7 | G7 | C7 A7 | Dm7 G7 |\n```\n";
         editor.replaceSelection(sample);
@@ -129,7 +129,7 @@ export default class BRNotationPlugin extends Plugin {
     // Command: Insert fretboard scale map
     this.addCommand({
       id: "insert-fretboard-scale",
-      name: "Insert fretboard scale diagram",
+      name: "Insert fretboard diagram",
       editorCallback: (editor: Editor) => {
         const sample = "```brnotation\ntype: fretboard\ntitle: A Minor Pentatonic\nroot: A\nscale: minor-pentatonic\nfrets: 0-12\nshow: degrees\n```\n";
         editor.replaceSelection(sample);

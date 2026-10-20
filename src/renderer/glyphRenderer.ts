@@ -928,12 +928,12 @@ function layoutMeasureNotes(
     if (!all.length) continue;
     const avgY = all.reduce((a, b) => a + b, 0) / all.length;
     const up = avgY > middleY;
-    // Beamed stems run 3 staff spaces from the notehead farthest from the beam, then the beam is fitted to them.
-    const groupExtreme = up ? Math.max(...all) : Math.min(...all);
+    // Beamed stems run 3 staff spaces past the notehead furthest from the stem's origin, so the beam clears the whole stack.
+    const groupExtreme = up ? Math.min(...all) : Math.max(...all);
     const natural = g.map((i) => {
       const ys = headYs[i];
-      const farthest = ys.length ? (up ? Math.max(...ys) : Math.min(...ys)) : groupExtreme;
-      return up ? farthest - 3 * lineSpacing : farthest + 3 * lineSpacing;
+      const extreme = ys.length ? (up ? Math.min(...ys) : Math.max(...ys)) : groupExtreme;
+      return up ? extreme - 3 * lineSpacing : extreme + 3 * lineSpacing;
     });
     const stemXs = g.map((i) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2)));
     const tips = fitBeamTips(stemXs, natural, up ? 1 : -1);
@@ -1144,6 +1144,15 @@ function fitBeamTips(xs: number[], natural: number[], dir: number): number[] {
 function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
   const { beat, compound } = beatQuarters(timeSig);
   const groups: number[][] = [];
+  // Explicit `<...>` groups are beamed together as written. Notes outside them use the automatic rules.
+  const explicit = new Map<number, number[]>();
+  notes.forEach((note, i) => {
+    if (note.beamGroup === undefined || beamCount(note) === 0) return;
+    const members = explicit.get(note.beamGroup) ?? [];
+    members.push(i);
+    explicit.set(note.beamGroup, members);
+  });
+  for (const members of explicit.values()) if (members.length >= 2) groups.push(members);
   let cur: number[] = [];
   let curKey: string | null = null;
   const flush = () => {
@@ -1154,7 +1163,9 @@ function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
   let pos = 0;
   notes.forEach((note, i) => {
     const count = beamCount(note);
-    if (count === 0) {
+    if (note.beamGroup !== undefined && count > 0) {
+      flush();
+    } else if (count === 0) {
       flush();
     } else {
       // Triplets group every beat like 16ths. Plain 8ths group every two beats (every beat in compound meters).

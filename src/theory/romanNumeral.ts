@@ -67,3 +67,33 @@ export function romanNumeralFor(chord: string, key: string): string | undefined 
 
   return label;
 }
+
+const ROMAN_TOKEN = /^([#b♭♯]?)(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i)(.*)$/;
+
+/**
+ * True when a chord-grid token is written as a roman numeral (I7, IV, bVII, ii7).
+ * Note-name roots (A-G) are not matched, so chords such as "Bb" or "Am7" are unaffected.
+ */
+export function isRomanNumeralToken(token: string): boolean {
+  return ROMAN_TOKEN.test(token.trim());
+}
+
+/**
+ * Splits a roman-numeral token into its display base and superscript quality, like note-name chords.
+ * "I7" -> { base: "I", quality: "7" }; "bVIIM7" -> { base: "♭VII", quality: "maj7" }; "viidim7" -> { base: "vii", quality: "°7" }.
+ */
+export function splitRomanNumeral(token: string): { base: string; quality: string } {
+  const m = token.trim().match(ROMAN_TOKEN);
+  if (!m) return { base: token, quality: "" };
+  const prefix = m[1] === "b" ? "♭" : m[1] === "#" ? "♯" : m[1];
+  const rest = m[3];
+  const q = rest.match(/^(maj7|M7|Δ|m7b5|ø7|ø|dim7|°7|°|m7|7|6|m|dim)?(.*)$/);
+  let quality = q?.[1] ?? "";
+  const alts = (q?.[2] ?? "").replace(/b/g, "♭").replace(/#/g, "♯");
+  if (quality === "M7" || quality === "Δ") quality = "maj7";
+  else if (quality === "m7b5" || quality === "ø") quality = "ø7";
+  else if (quality === "dim7" || quality === "°") quality = "°7";
+  else if (quality === "dim") quality = "°";
+  else if (quality === "m") quality = "";
+  return { base: prefix + m[2], quality: quality + alts };
+}

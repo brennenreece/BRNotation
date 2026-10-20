@@ -24,6 +24,7 @@ export interface ScoreNote {
   isRest: boolean;
   dots: number;
   tuplet?: boolean; // triplet: three notes in the time of two
+  beamGroup?: number; // explicit beam group id from `<...>` in the measure
   tied?: boolean;
   pitches?: NotePitch[]; // for standard notation
   tabPositions?: TabPosition[]; // for tablature

@@ -6,7 +6,7 @@
 import { Barline, Formatter, Renderer, Stave, StaveNote, Voice } from "vexflow";
 import { ChordGridMeasure, ChordGridScore } from "../types";
 import { parseChord } from "../parser/chordParser";
-import { romanNumeralFor } from "../theory/romanNumeral";
+import { isRomanNumeralToken, romanNumeralFor, splitRomanNumeral } from "../theory/romanNumeral";
 
 export interface ChordGridRenderOptions {
   width?: number;
@@ -195,7 +195,11 @@ function drawMeasureContent(
       return;
     }
     if (label === "/") return;
-    drawChordSvg(g, label, cx, top - 12, "center");
+    if (isRomanNumeralToken(label)) {
+      drawRomanChord(g, label, cx, top - 12);
+    } else {
+      drawChordSvg(g, label, cx, top - 12, "center");
+    }
     if (score.showFunctions && score.key) {
       const numeral = romanNumeralFor(label, score.key);
       if (numeral) {
@@ -288,6 +292,32 @@ function drawSimile(g: Element, cx: number, cy: number) {
 }
 
 /** Draw chord name with typography */
+/** Draws a roman-numeral chord symbol with its quality as a superscript, matching note-name chords */
+function drawRomanChord(g: SVGElement, token: string, x: number, y: number) {
+  const { base, quality } = splitRomanNumeral(token);
+  const svgNS = "http://www.w3.org/2000/svg";
+  const el = document.createElementNS(svgNS, "text");
+  el.setAttribute("x", `${x}`);
+  el.setAttribute("y", `${y}`);
+  el.setAttribute("text-anchor", "middle");
+  el.classList.add("br-chordgrid-chord-text");
+  applyChordTextStyle(el);
+
+  const baseTspan = document.createElementNS(svgNS, "tspan");
+  baseTspan.textContent = base;
+  baseTspan.classList.add("br-chord-root");
+  el.appendChild(baseTspan);
+
+  if (quality) {
+    const extTspan = document.createElementNS(svgNS, "tspan");
+    extTspan.setAttribute("dy", "-4");
+    extTspan.setAttribute("font-size", "0.75em");
+    extTspan.textContent = quality;
+    el.appendChild(extTspan);
+  }
+  g.appendChild(el);
+}
+
 function drawChordSvg(
   g: SVGElement,
   chordStr: string,
