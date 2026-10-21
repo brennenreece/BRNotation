@@ -34,8 +34,8 @@ interface RawChordBox {
 
 
 /**
- * Converts DiagramNote[] to a frets array (6 strings, high E to low E).
- * Missing strings become "x". dotOverrides map to the same positions.
+ * Converts DiagramNote[] to a frets array (6 strings, low E to high E),
+ * matching the order of `frets:`. Missing strings become "x". dotOverrides map to the same positions.
  */
 function notesToFrets(notes: DiagramNote[]): {
   frets: (number | "x")[];
@@ -47,7 +47,7 @@ function notesToFrets(notes: DiagramNote[]): {
   }
   const frets: (number | "x")[] = [];
   const dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[] = [];
-  for (let str = 1; str <= 6; str++) {
+  for (let str = 6; str >= 1; str--) {
     const entry = fretMap.get(str);
     if (entry) {
       frets.push(entry.fret);
