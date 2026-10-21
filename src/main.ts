@@ -181,7 +181,7 @@ export default class BRNotationPlugin extends Plugin {
 
     // Header bar
     const header = container.createDiv({ cls: "br-notation-header" });
-    const parsed = parseBRNotationBlock(source);
+    const parsed = parseBRNotationBlock(source, this.settings.defaultTuning);
 
     const titleText =
       parsed.notationScore?.title ||

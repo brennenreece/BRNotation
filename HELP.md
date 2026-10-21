@@ -146,7 +146,7 @@ c4/8t     C, triplet eighth note (three in the time of two)
 - Accidentals are `#` (sharp) and `b` (flat).
 - Add `t` after the duration for a triplet note, such as `c4/8t` or `d4/16t`. Three triplet eighths fill one beat.
 - Use `:8t` on its own to make every following note a triplet eighth until a plain duration directive such as `:8` or `:q`. For example, `| :8t g4 g4 g4 | :8 c4 d4 |`.
-- Wrap notes in `< >` to beam them together as one group, such as `| :8t <g4 g4 g4> <g4 g4 g4> |`. Notes outside `< >` use the automatic beaming rules. A group should not cross a barline.
+- Wrap notes in `< >` to mark them as one beam group, such as `| :8t <g4 g4 g4> <g4 g4 g4> |`. The `< >` marking does not force a beam break, so beaming still follows the automatic rules. A group should not cross a barline.
 - Add `~` after a note to tie it to the next note of the same pitch, such as `| :8t <g4~ g4 g4> |` or `| c4/h~ c4/h |`. The tie is drawn as an arc on both the staff and the tab. A tie that reaches a barline is drawn as a short arc at the measure's right edge.
 - Octave 4 is the octave that starts at middle C.
 
@@ -298,6 +298,7 @@ Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteen
 
 - **Strings are numbered 1 to 6.** String 1 is the highest string (high E, E4 in standard tuning) and string 6 is the lowest (low E, E2). The order from string 6 to string 1 is low E, A, D, G, B, high E. A 4-string bass uses strings 1 to 4.
 - A rest is `r`. It uses the current duration, like a note.
+- A hammer-on or pull-off is a bare `h` or `p` between two notes, such as `| :q 5/3 h 7/3 p 5/3 |`. The `h` or `p` applies to the note after it. The tab draws an arc with an H or P label from the note before to the note after. In coupled mode the same arc is drawn above the staff notes, without a label, so the H or P appears only on the tab. The note before must be a sounding note, not a rest. The arc can cross a barline, so `| :q 5/3 | h 7/3 |` works too.
 
 ```brnotation
 mode: tab
@@ -306,9 +307,21 @@ tuning: drop-d
 | :q 1/1 r 3/2 5/2 | :h 0/0 r |
 ```
 
+### Multiple parts
+
+Put parts inside square brackets within a measure, using `V1:` and `V2:` markers. Each part holds its own notes. Parts stack the same way chords do, and any other notation in the same measure works as usual. Voice 1 stems point up and voice 2 stems point down. Notes that start together share a vertical position, and beams never cross between parts.
+
+```brnotation
+type: coupled
+| [V1: :q 3/5 5/5 3/6 5/6 V2: :16 7/1 8/1 7/2 8/2 7/1 8/1 7/2 8/2] |
+| :q 0/6 [V1: :h 2/4 V2: :h 0/2] |
+```
+
+Both parts must add up to the same length, so they end together. A parts group can use any durations and can sit anywhere in a measure, for example two parts for the first beat of a bar. Lyrics and chord symbols attach to voice 1. Hammer-ons and pull-offs stay within their own part. Barlines cannot go inside a parts group, but they can go around it.
+
 ### Tuning
 
-Set `tuning:` to one of the names in [Tunings and scales](#tunings-and-scales). If you leave it out, the plugin uses `standard`.
+Set `tuning:` to one of the names in [Tunings and scales](#tunings-and-scales). If you leave it out, the plugin uses the default tuning from the plugin settings, which is `standard` unless you change it.
 
 ```brnotation
 mode: tab
@@ -335,6 +348,15 @@ key: G
 - The pitch inside the parentheses sets the note on the staff.
 - The `fret/string` pair inside the parentheses sets the tab position.
 - Keep the pitch and the tab position consistent with the tuning. The plugin does not check this for you.
+
+You can leave out the pitch and write just the `fret/string` pair. The staff note is then worked out from the block's `tuning:`, so `5/3` in standard tuning shows as C4 on the staff:
+
+```brnotation
+mode: coupled
+| :q 5/3 0/2 7/6 |
+```
+
+This works inside chord brackets too, such as `[5/3,4/2]`. The staff spelling uses sharps. To write a flat or a specific spelling, give the pitch yourself, such as `eb4(6/5)`.
 
 ---
 
@@ -447,9 +469,13 @@ base-fret: 1
 
 ### Syntax
 
+**Entry methods:**
 - `frets:` lists the fret for each string from low to high. Use `x` for a muted string and `0` for an open string.
+- `notes:` lists only the frets you play, using `fret/string` notation like tablature and fretboard diagrams. Unlisted strings are muted. This is often simpler than listing all six strings.
+
+**Shared properties:**
 - `fingers:` lists the finger number for each string. Use `-` for no finger.
-- `base-fret:` sets the top fret shown. Use a higher number for chords higher up the neck:
+- `base-fret:` sets the top fret shown. Use a higher number for chords higher up the neck.
 
 ```brnotation
 type: chord
@@ -467,7 +493,35 @@ fingers: - 1 3 4 2 1
 base-fret: 2
 ```
 
+**Entering notes with `notes:` instead of `frets:`:**
+
+You can also enter notes using `fret/string` notation (like tab and fretboard diagrams). Unlisted strings are muted, which is often simpler than listing all six strings:
+
+```brnotation
+type: chord
+name: Am7
+notes: 0/6 2/4 0/3 1/2 0/1
+```
+
+is equivalent to `frets: x 0 2 0 1 0`. You can style dots the same way as in fretboard diagrams:
+
+```brnotation
+type: chord
+name: F
+notes: 1/1{root} 3/2{square,red} 3/3 2/4 1/5 1/6
+base-fret: 1
+```
+
 Chord boxes use the same look and dot styles as fretboard maps, so a `style:` line works here too. See [Diagram styles](#diagram-styles).
+
+To style a single dot, add `{style,color}` after its fret number in `frets:`, the same way as fretboard notes. Leave the style empty to change only the colour: `{,red}`.
+
+```brnotation
+type: chord
+name: Am
+frets: x 0{root} 2{square,red} 2 1{,blue} 0
+fingers: - - 2 3 1 -
+```
 
 ### Several chord boxes in one block
 

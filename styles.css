@@ -82,6 +82,12 @@
   stroke: var(--text-normal) !important;
 }
 
+/* Hammer-on and pull-off arcs are open curves: never fill them. */
+.br-notation-svg path.br-hammer-arc {
+  fill: none !important;
+  stroke: var(--text-normal) !important;
+}
+
 /* Background cutout behind tab fret numbers: match note body background */
 .br-notation-svg .vf-tabnote rect {
   fill: var(--background-primary) !important;

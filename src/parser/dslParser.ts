@@ -20,18 +20,48 @@ import {
   ScoreNote,
   TabPosition,
 } from "../types";
-import { TUNING_PRESETS } from "./scales";
+import { TUNING_PRESETS, midiToNote, stringFretToMidi } from "./scales";
 
 interface RawChordBox {
   name: string;
   frets: (number | "x")[];
   fingers: (string | number | null)[];
+  dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
   baseFret: number;
   /** Index of the row this box belongs to; a `row:` line starts a new row. */
   row: number;
 }
 
-export function parseBRNotationBlock(rawText: string): ParsedBlock {
+
+/**
+ * Converts DiagramNote[] to a frets array (6 strings, high E to low E).
+ * Missing strings become "x". dotOverrides map to the same positions.
+ */
+function notesToFrets(notes: DiagramNote[]): {
+  frets: (number | "x")[];
+  dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
+} {
+  const fretMap = new Map<number, { fret: number; style?: DiagramDotStyle | "root"; color?: DiagramColor }>();
+  for (const note of notes) {
+    fretMap.set(note.str, { fret: note.fret, style: note.style, color: note.color });
+  }
+  const frets: (number | "x")[] = [];
+  const dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[] = [];
+  for (let str = 1; str <= 6; str++) {
+    const entry = fretMap.get(str);
+    if (entry) {
+      frets.push(entry.fret);
+      dotOverrides.push(entry.style || entry.color ? { style: entry.style, color: entry.color } : null);
+    } else {
+      frets.push("x");
+      dotOverrides.push(null);
+    }
+  }
+  return { frets, dotOverrides };
+}
+
+/** `defaultTuning` is the global setting; a `tuning:` line in the block overrides it. */
+export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"): ParsedBlock {
   const lines = rawText.split(/\r?\n/);
   const errors: string[] = [];
 
@@ -42,7 +72,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let timeSignatureVisible = true;
   let keySignature = "C";
   let clef: any = "treble";
-  let tuningPreset = "standard";
+  let tuningPreset = defaultTuning;
   let measuresPerRow = 4;
   let showFunctions = false;
   let showMeasureNumbers = false;
@@ -53,6 +83,8 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   let chordName = "Chord";
   let chordFrets: (number | "x")[] = [0, 0, 0, 0, 0, 0];
   let chordFingers: (string | number | null)[] = [];
+  let chordDotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[] = [];
+  let chordNotes: DiagramNote[] | undefined = undefined; // notes: for chord blocks
   let baseFret = 1;
   let chordColumns: number | undefined = undefined;
   let chordFont: string | undefined = undefined;
@@ -80,6 +112,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
   // Check directive headers
   const contentLines: string[] = [];
   const lyricLines: string[] = [];
+  const unlabeledLines: string[] = [];
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("# ")) {
@@ -109,25 +142,41 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       continue;
     }
     if (lower.startsWith("notes:")) {
-      customNotes = [];
-      // A standalone "-" links the note before it to the note after it
+      const notesArray: DiagramNote[] = [];
+      // A standalone "-" links the note before it to the note after it (fretboard only)
       let linkNext = false;
       for (const token of trimmed.slice(6).trim().split(/\s+/).filter(Boolean)) {
         if (token === "-") {
-          if (customNotes.length === 0) errors.push(`A "-" in notes: needs a note before it.`);
+          if (notesArray.length === 0) errors.push(`A "-" in notes: needs a note before it.`);
           else linkNext = true;
           continue;
         }
         const note = parseDiagramNote(token);
         if (note) {
           if (linkNext) note.linkFromPrevious = true;
-          customNotes.push(note);
+          notesArray.push(note);
           linkNext = false;
         } else {
           errors.push(`Could not read note "${token}". Use fret/string, such as 5/6 or 7/5{root}=R.`);
         }
       }
       if (linkNext) errors.push(`A "-" in notes: needs a note after it.`);
+      
+      // Store for fretboard
+      customNotes = notesArray;
+      // Store for chord boxes (without linkFromPrevious, which is fretboard-only)
+      chordNotes = notesArray.map(n => ({ ...n, linkFromPrevious: undefined }));
+      
+      // If building a chord, apply notes directly to the pending/current chord
+      const { frets: notesFrets, dotOverrides: notesDotOverrides } = notesToFrets(chordNotes);
+      if (!pendingChord && chordName) {
+        // Create a new chord if notes: comes before frets:
+        pendingChord = { name: chordName, frets: notesFrets, fingers: chordFingers, dotOverrides: notesDotOverrides, baseFret, row: chordRow };
+      } else if (pendingChord) {
+        // Update existing chord
+        pendingChord.frets = notesFrets;
+        pendingChord.dotOverrides = notesDotOverrides;
+      }
       continue;
     }
     if (lower.startsWith("line:")) {
@@ -227,14 +276,30 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
       chordName = trimmed.slice(trimmed.indexOf(":") + 1).trim();
       chordFrets = [0, 0, 0, 0, 0, 0];
       chordFingers = [];
+      chordDotOverrides = [];
       baseFret = 1;
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
     if (lower.startsWith("frets:")) {
       const fStr = trimmed.slice(6).trim();
-      chordFrets = fStr.split(/\s+/).map((f) => (f.toLowerCase() === "x" ? "x" : parseInt(f, 10)));
-      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, baseFret, row: chordRow };
+      chordDotOverrides = [];
+      chordFrets = fStr.split(/\s+/).map((f) => {
+        // `3{square,red}` styles one dot. Plain numbers and x behave as before.
+        const om = f.match(/^(\d+)\{([\w-]*)(?:,(\w+))?\}$/);
+        if (!om) {
+          chordDotOverrides.push(null);
+          return f.toLowerCase() === "x" ? "x" : parseInt(f, 10);
+        }
+        const style = om[2]?.toLowerCase() || undefined;
+        const color = om[3]?.toLowerCase();
+        const validStyle = !style || style === "root" || DIAGRAM_DOT_STYLES.includes(style as DiagramDotStyle);
+        const validColor = !color || DIAGRAM_COLORS.includes(color as DiagramColor);
+        if (!validStyle || !validColor) errors.push(`Could not read chord dot "${f}". Use fret{style,color}, such as 3{square,red}.`);
+        chordDotOverrides.push({ style: style as DiagramDotStyle | "root" | undefined, color: validColor ? (color as DiagramColor | undefined) : undefined });
+        return parseInt(om[1], 10);
+      });
+      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, baseFret, row: chordRow };
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
@@ -306,6 +371,7 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     }
 
     contentLines.push(trimmed);
+    unlabeledLines.push(trimmed);
   }
 
   // Auto-detect mode if not explicitly set
@@ -327,12 +393,13 @@ export function parseBRNotationBlock(rawText: string): ParsedBlock {
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
     if (pendingChord) rawChordBoxes.push(pendingChord);
-    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, baseFret, row: chordRow });
+    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, baseFret, row: chordRow });
     const chordBoxes: ChordDiagramData[] = rawChordBoxes.map((box) => ({
       name: box.name,
       tuning,
       frets: box.frets,
       fingers: box.fingers,
+      dotOverrides: box.dotOverrides,
       baseFret: box.baseFret,
       dotStyle,
       dotColor,
@@ -454,7 +521,73 @@ function parseChordGrid(
   };
 }
 
+/** Length of a note in quarter notes, counting dots and triplets. */
+function noteLength(note: ScoreNote): number {
+  const base: Record<string, number> = { w: 4, h: 2, q: 1, "8": 0.5, "16": 0.25, "32": 0.125 };
+  const len = base[note.duration] ?? 1;
+  return note.tuplet ? (2 / 3) * len : len * (2 - 1 / Math.pow(2, note.dots ?? 0));
+}
+
 /** Parses standard notation, tab, and coupled staves */
+/**
+ * Parses one `[V1: ... V2: ...]` measure. Each part is parsed as a single bar, so the parts stack
+ * on one staff and tab. Returns the merged notes for that measure, or undefined if the group is malformed.
+ */
+function parseVoicedGroup(
+  inner: string,
+  mode: "notation" | "tab" | "coupled",
+  timeSignature: string,
+  keySignature: string,
+  clef: any,
+  tuning: string[],
+  errors: string[],
+  measureNumber: number
+): ScoreNote[] | undefined {
+  // Split on `V1:` / `V2:` markers, keeping each part's text
+  const markers = [...inner.matchAll(/V([12])\s*:/gi)];
+  if (markers.length === 0) {
+    errors.push(`Measure ${measureNumber} brackets need V1: and V2: parts`);
+    return undefined;
+  }
+  const partText: { 1?: string; 2?: string } = {};
+  markers.forEach((m, i) => {
+    const voice = Number(m[1]) as 1 | 2;
+    const start = (m.index ?? 0) + m[0].length;
+    const end = i + 1 < markers.length ? markers[i + 1].index ?? inner.length : inner.length;
+    if (partText[voice] !== undefined) {
+      errors.push(`Measure ${measureNumber} has more than one V${voice}: part`);
+    }
+    partText[voice] = inner.slice(start, end).trim();
+  });
+  const leading = inner.slice(0, markers[0].index ?? 0).trim();
+  if (leading) errors.push(`Text before V${markers[0][1]}: in measure ${measureNumber} is ignored`);
+  if (partText[1] === undefined || partText[2] === undefined) {
+    errors.push(`Measure ${measureNumber} needs both V1: and V2: parts`);
+    return undefined;
+  }
+  const parts: Record<1 | 2, ScoreNote[]> = { 1: [], 2: [] };
+  for (const v of [1, 2] as const) {
+    const parsed = parseNotationContent([partText[v]!], mode, undefined, timeSignature, keySignature, clef, tuning, errors, []);
+    if (parsed.measures.length !== 1 || !parsed.measures[0]) {
+      errors.push(`V${v} in measure ${measureNumber} must not contain barlines`);
+      return undefined;
+    }
+    parts[v] = parsed.measures[0].notes;
+  }
+  // Both parts must add up to the same length, so they end together. Any length works, e.g. one beat each.
+  const lengthOf = (ns: ScoreNote[]) => ns.reduce((sum, n) => sum + noteLength(n), 0);
+  const len1 = lengthOf(parts[1]);
+  const len2 = lengthOf(parts[2]);
+  if (Math.abs(len1 - len2) > 1e-9) {
+    errors.push(`V1 and V2 in measure ${measureNumber} must be the same length`);
+    return undefined;
+  }
+  return [
+    ...parts[1].map((n) => ({ ...n, voice: 1 as const })),
+    ...parts[2].map((n) => ({ ...n, voice: 2 as const })),
+  ];
+}
+
 function parseNotationContent(
   lines: string[],
   mode: "notation" | "tab" | "coupled",
@@ -471,7 +604,13 @@ function parseNotationContent(
 
   // Split into segments at barline tokens, keeping each barline as its own token.
   // Longest tokens first so ":|:" and "|:" are not read as "|" or ":".
-  const fullContent = lines.join(" ");
+  // A `[V1: ... V2: ...]` group is one measure with two stacked parts. It is pulled out before the
+  // barline split so barlines inside it do not break the measure, and is restored as a placeholder token.
+  const voicedGroups: string[] = [];
+  const fullContent = lines.join(" ").replace(/\[\s*V[12]\s*:[^\]]*\]/gi, (match) => {
+    voicedGroups.push(match.slice(1, -1));
+    return ` \u0000${voicedGroups.length - 1}\u0000 `;
+  });
   // `:|.` is read as a plain repeat end, so its trailing dot is absorbed rather than read as a note.
   const parts = fullContent.split(/(:\|:|\|\||\|:|:\|\.|:\||\|\.|\||\\)/).map((p) => (p === ":|." ? ":|" : p));
 
@@ -490,11 +629,31 @@ function parseNotationContent(
   // A chord symbol ("Am7") labels the next note or rest, wherever it appears in the bar.
   // It is carried forward across barlines until a note takes it, so it never occupies a beat.
   let pendingChord: string | undefined;
+  // An `h` or `p` token waiting for the note it applies to.
+  let pendingHammerPull: "h" | "p" | undefined;
+  // The last sounding note in the score, so a hammer-on or pull-off can start across a barline.
+  let lastSounding: { measure: number; index: number } | undefined;
   const flush = (closingBar: ClosingBarline) => {
     const trimmed = segment.trim();
     segment = "";
     const notes: ScoreNote[] = [];
     for (let token of tokenizeMeasure(trimmed)) {
+      const groupMatch = token.match(/^\u0000(\d+)\u0000$/);
+      if (groupMatch) {
+        // A bracketed parts group is a whole measure, so its notes are added as they are and the rest of the measure is parsed as usual.
+        const groupNotes = parseVoicedGroup(
+          voicedGroups[Number(groupMatch[1])],
+          mode,
+          timeSignature,
+          keySignature,
+          clef,
+          tuning,
+          errors,
+          currentMeasureNumber
+        );
+        if (groupNotes) notes.push(...groupNotes);
+        continue;
+      }
       let opens = false;
       let closes = false;
       if (token.startsWith("<")) {
@@ -522,7 +681,22 @@ function parseNotationContent(
         pendingChord = token.slice(1, -1);
         continue;
       }
-      const scoreNote = parseNoteToken(token, mode, stickyDuration);
+      // A bare `h` or `p` between two notes marks the next note as a hammer-on or pull-off.
+      const hpMatch = token.match(/^([hp])$/i);
+      if (hpMatch) {
+        if (!lastSounding) {
+          errors.push(`"${token}" must come after a sounding note in measure ${currentMeasureNumber}`);
+        } else {
+          pendingHammerPull = hpMatch[1].toLowerCase() as "h" | "p";
+        }
+        continue;
+      }
+      const scoreNote = parseNoteToken(token, mode, stickyDuration, tuning);
+      if (scoreNote && pendingHammerPull) {
+        scoreNote.hammerPull = pendingHammerPull;
+        scoreNote.hammerFrom = lastSounding;
+        pendingHammerPull = undefined;
+      }
       if (scoreNote && stickyTuplet) scoreNote.tuplet = true;
       if (scoreNote && openBeamGroup !== undefined) scoreNote.beamGroup = openBeamGroup;
       if (closes) openBeamGroup = undefined;
@@ -532,6 +706,7 @@ function parseNotationContent(
           pendingChord = undefined;
         }
         notes.push(scoreNote);
+        if (!scoreNote.isRest) lastSounding = { measure: currentMeasureNumber, index: notes.length - 1 };
       } else errors.push(`Could not read "${token}" in measure ${currentMeasureNumber}`);
     }
     if (notes.length > 0) {
@@ -672,15 +847,27 @@ function splitNoteAnnotations(token: string): { base: string; above?: string; be
 }
 
 /** Parses a single note or chord token. `defaultDuration` is the sticky `:dur` value in effect. */
+/** Staff pitch for a fret/string position, from the block tuning (string 1 = highest). */
+function pitchFromTab(fret: number, str: number, tuning: string[]): NotePitch | undefined {
+  if (!Number.isInteger(str) || str < 1 || str > tuning.length) return undefined;
+  const openNote = tuning[tuning.length - str];
+  if (typeof openNote !== "string" || !openNote.trim()) return undefined;
+  const midi = stringFretToMidi(openNote, fret);
+  const [, step, accidental, octave] = midiToNote(midi).toLowerCase().match(/^([a-g])(#?)(-?\d+)$/) ?? [];
+  if (!step) return undefined;
+  return { step: step as NotePitch["step"], accidental: accidental ? "#" : undefined, octave: parseInt(octave, 10) };
+}
+
 function parseNoteToken(
   token: string,
   mode: "notation" | "tab" | "coupled",
-  defaultDuration: DurationType = "q"
+  defaultDuration: DurationType = "q",
+  tuning: string[] = TUNING_PRESETS.standard.notes
 ): ScoreNote | null {
   const annotated = splitNoteAnnotations(token);
   if (!annotated) return null;
   if (annotated.base !== token) {
-    const note = parseNoteToken(annotated.base, mode, defaultDuration);
+    const note = parseNoteToken(annotated.base, mode, defaultDuration, tuning);
     if (!note) return null;
     if (annotated.above !== undefined) note.textAbove = annotated.above;
     if (annotated.below !== undefined) note.textBelow = annotated.below;
@@ -719,6 +906,10 @@ function parseNoteToken(
     const tied = tabMatch[3] === "~";
     const technique = (tabMatch[4]?.toLowerCase() as any) || undefined;
 
+    // In coupled blocks a bare fret/string also sets the staff pitch, from the block's tuning.
+    const tabPitch = mode === "coupled" ? pitchFromTab(fret, str, tuning) : undefined;
+    const pitches = tabPitch ? [tabPitch] : undefined;
+
     return {
       id,
       duration: defaultDuration,
@@ -726,6 +917,7 @@ function parseNoteToken(
       dots: 0,
       tied,
       tabPositions: [{ str, fret, technique }],
+      ...(pitches ? { pitches } : {}),
     };
   }
 
@@ -748,9 +940,14 @@ function parseNoteToken(
         const p = parsePitchString(withTab[1]);
         if (p) pitches.push(p);
         tabPositions.push({ fret: parseInt(withTab[2], 10), str: parseInt(withTab[3], 10) });
-      } else if (part.includes(":")) {
-        const [f, s] = part.split(":");
-        tabPositions.push({ fret: parseInt(f, 10), str: parseInt(s, 10) });
+      } else if (part.includes(":") || /^\d+\/\d+$/.test(part)) {
+        const [f, s] = part.includes(":") ? part.split(":") : part.split("/");
+        const fret = parseInt(f, 10);
+        const str = parseInt(s, 10);
+        tabPositions.push({ fret, str });
+        // Coupled blocks also get the staff pitch for a bare fret/string part
+        const tabPitch = mode === "coupled" ? pitchFromTab(fret, str, tuning) : undefined;
+        if (tabPitch) pitches.push(tabPitch);
       } else {
         const p = parsePitchString(part);
         if (p) pitches.push(p);
@@ -759,7 +956,7 @@ function parseNoteToken(
 
     // Explicit `pitch(fret/string)` positions only apply when every note has one, so the
     // fret list always lines up with the pitch list. Partly specified chords are auto-placed.
-    const isPositioned = (part: string) => /\(\d+\/\d+\)$/.test(part) || part.includes(":");
+    const isPositioned = (part: string) => /\(\d+\/\d+\)$/.test(part) || part.includes(":") || /^\d+\/\d+$/.test(part);
     const allPositioned = parts.length > 0 && parts.every(isPositioned);
     return {
       id,

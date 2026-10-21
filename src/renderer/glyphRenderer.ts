@@ -205,6 +205,8 @@ export function renderGlyphScore(
 
   // A measure's time signature applies to it and every measure after it until the next change.
   let currentTimeSig = score.timeSignature;
+  const staffSpots = new Map<string, Spot>();
+  const tabSpots = new Map<string, Spot>();
   for (let mIdx = 0; mIdx < score.measures.length; mIdx++) {
     const measure = score.measures[mIdx];
     if (measure.timeSignature) currentTimeSig = measure.timeSignature;
@@ -230,7 +232,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, tabOnlyMinGaps(measure, score.tuning, tabSize));
+      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, tabOnlyMinGaps(measure, score.tuning, tabSize), tabSpots);
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -277,12 +279,17 @@ export function renderGlyphScore(
     // Barlines follow the VexFlow staff: the first measure of a line gets a left edge, and
     // each measure's right edge uses its closing barline type. In coupled blocks the line
     // start is drawn as one system connector below.
-    if (measureInLine === 0 && !isCoupled) {
-      drawBarlineLeft(svg, xPos, y0, 4 * lineSpacing, measure.startBarline === "repeat-begin");
+    // A repeat start is drawn at the left edge of its measure even mid-line, where it sits
+    // between the previous measure and this one.
+    const repeatStart = measure.startBarline === "repeat-begin";
+    if (!isCoupled && (measureInLine === 0 || repeatStart)) {
+      drawBarlineLeft(svg, xPos, y0, 4 * lineSpacing, repeatStart);
+    } else if (isCoupled && repeatStart && measureInLine > 0) {
+      drawBarlineLeft(svg, xPos, y0, 4 * lineSpacing, true);
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize), scale);
+    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize), scale, staffSpots);
     // Chord symbols sit above the staff. Lyrics sit below the notation staff (in coupled blocks, above the tab).
     drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom, clef, chordDistance, glyphSize * 0.3 * headScale / 2);
 
@@ -301,21 +308,94 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, measureMinGaps(measure, score.tuning, tabSize, true, headScale, glyphSize));
+      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, measureMinGaps(measure, score.tuning, tabSize, true, headScale, glyphSize), tabSpots);
       const tabHeightPx = (numStrings - 1) * tabSpacing;
       drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
-      if (measureInLine === 0 && measure.startBarline === "repeat-begin") {
+      if (repeatStart && (measureInLine > 0 || !isCoupled)) {
         drawBarlineLeft(svg, xPos, tabY0, tabHeightPx, true);
       }
     }
   }
 
+  if (!isTabOnly) drawCrossMeasureHammers(svg, score, staffSpots, lineSpacing, HAMMER_LABEL_SIZE, lineSpacing * 0.5 * headScale, false);
+  if (isCoupled || isTabOnly) drawCrossMeasureHammers(svg, score, tabSpots, tabSpacing, HAMMER_LABEL_SIZE, tabSize * 0.3, true);
+
   return wrapper;
+}
+
+/**
+ * One hammer-on or pull-off slur from x1 to x2, drawn above the notes at height `top`. The curve
+ * rises to its peak and returns, with the H or P label centred above it.
+ */
+function hammerArc(
+  svg: SVGElement,
+  x1: number,
+  x2: number,
+  y1: number,
+  y2: number,
+  rise: number,
+  label: string,
+  textSize: number
+): void {
+  // Height grows with the span but is capped at `rise`, and the control points sit inside the span
+  // so the curve leaves each head at a gentle angle rather than straight up.
+  const span = x2 - x1;
+  const h = Math.min(rise, span * 0.11) * 0.5;
+  const dx = span * 0.3;
+  const d = `M ${x1} ${y1} C ${x1 + dx} ${y1 - h} ${x2 - dx} ${y2 - h} ${x2} ${y2}`;
+  svg.appendChild(el("path", { d, class: "br-hammer-arc", "stroke-width": STEM_W, "stroke-linecap": "round" }));
+  const apex = (y1 + y2) / 2 - h * 0.75;
+  if (label) svg.appendChild(noteText((x1 + x2) / 2, apex - textSize * 0.5, label, textSize));
+}
+
+/**
+ * Draws hammer-on and pull-off arcs whose start note is in an earlier measure. The arc
+ * joins the two recorded note positions, so it runs across the barline.
+ */
+function drawCrossMeasureHammers(
+  svg: SVGElement,
+  score: NotationScore,
+  spots: Map<string, Spot>,
+  unit: number,
+  textSize: number,
+  headHalf: number,
+  showLabel: boolean
+): void {
+  for (const measure of score.measures) {
+    measure.notes.forEach((note, i) => {
+      if (!note.hammerPull || note.isRest || !note.hammerFrom) return;
+      if (note.hammerFrom.measure === measure.number) return;
+      const from = spots.get(spotKey(note.hammerFrom.measure, note.hammerFrom.index));
+      const to = spots.get(spotKey(measure.number, i));
+      if (!from || !to) return;
+      hammerArc(svg, from.x + headHalf, to.x - headHalf, from.y - unit * 0.4, to.y - unit * 0.4, unit * 1.2, showLabel ? (note.hammerPull === "h" ? "H" : "P") : "", textSize);
+    });
+  }
 }
 
 /** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
 function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number): number[] {
-  return noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size);
+  return partAwareGaps(measure.notes, noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size));
+}
+
+/**
+ * With parts, notes that start together share one onset, so each onset needs only its widest gap.
+ * The first note at an onset keeps that gap and the others get zero, so summing the gaps counts each onset once.
+ */
+function partAwareGaps(notes: ScoreNote[], gaps: number[]): number[] {
+  if (!notes.some((n) => n.voice !== undefined)) return gaps;
+  const { onsetOf, onsetCount } = partCentres(notes, 0, 0, gaps);
+  const onsetGap = new Array(onsetCount).fill(0);
+  const seen = new Array(onsetCount).fill(false);
+  notes.forEach((_, i) => {
+    onsetGap[onsetOf[i]] = Math.max(onsetGap[onsetOf[i]], gaps[i]);
+  });
+  return notes.map((_, i) => {
+    const k = onsetOf[i];
+    if (seen[k]) return 0;
+    seen[k] = true;
+    return onsetGap[k];
+  });
 }
 
 /**
@@ -343,11 +423,12 @@ function noteMinGaps(notes: ScoreNote[], tuning: string[], tabSize: number, head
 
 /** Tab-only blocks draw no staff, so they only need room for the tab labels. */
 function tabOnlyMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number): number[] {
-  return measure.notes.map((note) => {
+  const gaps = measure.notes.map((note) => {
     const labels = note.isRest ? [] : tabPositionsFor(note, tuning).map((p) => String(p.fret));
     const widest = labels.reduce((m, l) => Math.max(m, l.length), 1);
     return Math.max(NOTE_MIN_GAP, widest * tabSize * 0.6 + 6);
   });
+  return partAwareGaps(measure.notes, gaps);
 }
 
 /** Drawn width of one accidental. Accidental advances are Bravura em widths. */
@@ -439,6 +520,44 @@ function noteCentres(notes: ScoreNote[], xStart: number, width: number, minGaps?
   const gaps = gapsFor(scale);
   for (let i = 1; i < n; i++) xs.push(xs[i - 1] + gaps[i - 1]);
   return xs;
+}
+
+/**
+ * Lays out the notes of a measure that has parts (`V1:` / `V2:`). Notes that start at the same
+ * time in each part share one x position, so the parts line up like a score. Returns the x of each
+ * note by its index in `measure.notes`, plus the onset list used for spacing.
+ */
+function partCentres(
+  notes: ScoreNote[],
+  xStart: number,
+  width: number,
+  minGaps?: number[]
+): { xs: number[]; onsetOf: number[]; onsetCount: number } {
+  const onsetTimes: number[] = [];
+  const onsetOf: number[] = [];
+  const onsetGap: number[] = [];
+  const cursor: Record<number, number> = { 1: 0, 2: 0 };
+  notes.forEach((note, i) => {
+    const part = note.voice ?? 1;
+    const t = cursor[part];
+    let k = onsetTimes.findIndex((o) => Math.abs(o - t) < 1e-9);
+    if (k < 0) {
+      onsetTimes.push(t);
+      onsetGap.push(0);
+      k = onsetTimes.length - 1;
+    }
+    onsetOf[i] = k;
+    onsetGap[k] = Math.max(onsetGap[k], minGaps?.[i] ?? NOTE_MIN_GAP);
+    cursor[part] = t + noteQuarters(note);
+  });
+  // Space the shared onsets with the same rules as one part, using the shortest note at each onset as the spring
+  const onsetNotes = onsetTimes.map((t, k) => {
+    const at = notes.filter((_, i) => onsetOf[i] === k);
+    const shortest = at.reduce((a, b) => (noteQuarters(b) < noteQuarters(a) ? b : a));
+    return { ...shortest, duration: shortest.duration };
+  });
+  const xs = noteCentres(onsetNotes, xStart, width, onsetGap);
+  return { xs: notes.map((_, i) => xs[onsetOf[i]]), onsetOf, onsetCount: onsetTimes.length };
 }
 
 /**
@@ -708,6 +827,8 @@ const COUPLED_STAFF_TAB_GAP = 60;
 const LYRIC_FONT_SIZE = 13;
 /** Font size (px at scale 1) and extra height for `{above:}` text, which is smaller than chord symbols. */
 const NOTE_TEXT_FONT_SIZE = 11;
+/** H/P label size, the same for staff and tab hammer-on and pull-off arcs. */
+const HAMMER_LABEL_SIZE = NOTE_TEXT_FONT_SIZE;
 const NOTE_TEXT_ROOM = 14;
 /** Gap (in staff spaces) between the notehead's outer edge and the `{circle}` ring. */
 const NOTE_CIRCLE_RADIUS = 0.85;
@@ -850,7 +971,8 @@ function drawTabMeasure(
   xPos: number,
   measureWidth: number,
   numberOffset = 0,
-  minGaps?: number[]
+  minGaps?: number[],
+  spots?: Map<string, Spot>
 ): void {
   const stroke = "stroke: var(--text-normal, #000)";
   const tabBottom = tabY0 + (numStrings - 1) * tabSpacing;
@@ -865,7 +987,13 @@ function drawTabMeasure(
 
   if (!measure.notes.length) return;
   // Same note positions as the staff, so each fret number sits under its notehead.
-  const centres = noteCentres(measure.notes, xStart, width, minGaps);
+  const hasParts = measure.notes.some((n) => n.voice !== undefined);
+  const centres = hasParts ? partCentres(measure.notes, xStart, width, minGaps).xs : noteCentres(measure.notes, xStart, width, minGaps);
+  if (spots) measure.notes.forEach((note, i) => {
+    if (note.isRest) return;
+    const top = tabY0 + (Math.min(...tabPositionsFor(note, tuning).map((p) => p.str)) - 1) * tabSpacing;
+    spots.set(spotKey(measure.number, i), { x: centres[i], y: top });
+  });
   measure.notes.forEach((note, i) => {
     const x = centres[i];
     const positions = tabPositionsFor(note, tuning);
@@ -909,13 +1037,23 @@ function drawTabMeasure(
     if (note.textAbove) svg.appendChild(noteText(centres[i], tabY0 - size * 0.9, note.textAbove, textSize));
   });
 
+  // Tab hammer-ons and pull-offs: a slur above the fret numbers from the previous note to this one.
+  measure.notes.forEach((note, i) => {
+    if (!note.hammerPull || i === 0 || note.isRest) return;
+    const prev = measure.notes[i - 1];
+    if (prev.isRest || (prev.voice ?? 1) !== (note.voice ?? 1)) return;
+    const top = (n: ScoreNote) => tabY0 + (Math.min(...tabPositionsFor(n, tuning).map((p) => p.str)) - 1) * tabSpacing;
+    hammerArc(svg, centres[i - 1] + size * 0.3, centres[i] - size * 0.3, top(prev) - size * 0.4, top(note) - size * 0.4, size * 1.2, note.hammerPull === "h" ? "H" : "P", HAMMER_LABEL_SIZE);
+  });
+
   // Tab ties join the same string and fret across notes that share a position.
   const tabRight = xPos + measureWidth;
   measure.notes.forEach((note, i) => {
     if (!note.tied || note.isRest) return;
     const x1 = centres[i] + size * 0.3;
     const next = measure.notes[i + 1];
-    const nextPos = next && !next.isRest ? tabPositionsFor(next, tuning) : [];
+    const sameVoice = next && (next.voice ?? 1) === (note.voice ?? 1);
+    const nextPos = sameVoice && !next.isRest ? tabPositionsFor(next, tuning) : [];
     const here = tabPositionsFor(note, tuning);
     const samePos =
       nextPos.length === here.length && here.every((p, k) => nextPos[k]?.str === p.str && nextPos[k]?.fret === p.fret);
@@ -964,27 +1102,41 @@ function layoutMeasureNotes(
   timeSig: string,
   headScale: number,
   minGaps?: number[],
-  scale = 1
+  scale = 1,
+  spots?: Map<string, Spot>
 ): number[] {
   const notes = measure.notes;
   if (!notes.length) return [];
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
   const middleY = bottomY - 2 * lineSpacing;
-  const xs = noteCentres(notes, xStart, width, minGaps);
+  const hasParts = notes.some((n) => n.voice !== undefined);
+  const xs = hasParts ? partCentres(notes, xStart, width, minGaps).xs : noteCentres(notes, xStart, width, minGaps);
   const headYs = notes.map((note) =>
     note.isRest ? [] : (note.pitches ?? []).map((p) => bottomY - ((stepOf(p) - bottomStep) * lineSpacing) / 2)
   );
 
   // All notes in a group share one stem direction, set by the group's average pitch.
   const beamed = new Map<number, BeamStem>();
-  const groups = beamGroups(notes, timeSig);
+  // Parts are beamed separately, so a beam never joins a note from one part to one from the other.
+  // Each note's onset in quarters from the measure start.
+  const offsets = noteOffsets(notes);
+  const groups = hasParts
+    ? [undefined, 1, 2].flatMap((v) => {
+        // Notes outside a parts group (undefined) are beamed as their own run, like a normal measure.
+        const idx = notes.map((n, i) => (n.voice === v ? i : -1)).filter((i) => i >= 0);
+        const local = beamGroups(idx.map((i) => notes[i]), timeSig, idx.map((i) => offsets[i]));
+        return local.map((g) => g.map((k) => idx[k]));
+      })
+    : beamGroups(notes, timeSig);
   const headW = size * 0.3 * headScale;
   for (const g of groups) {
     const all = g.flatMap((i) => headYs[i]);
     if (!all.length) continue;
     const avgY = all.reduce((a, b) => a + b, 0) / all.length;
-    const up = avgY > middleY;
+    // Voice 1 stems always go up and voice 2 stems always go down, so the parts stay apart
+    const voiceUp = notes[g[0]].voice === 1 ? true : notes[g[0]].voice === 2 ? false : undefined;
+    const up = voiceUp ?? avgY > middleY;
     // Beamed stems run 3 staff spaces past the notehead furthest from the stem's origin, so the beam clears the whole stack.
     const groupExtreme = up ? Math.min(...all) : Math.max(...all);
     const natural = g.map((i) => {
@@ -1004,6 +1156,10 @@ function layoutMeasureNotes(
     drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing, headScale);
   }
   drawTies(svg, notes, xs, headYs, headW, width, xStart, lineSpacing);
+  drawHammerPulls(svg, notes, xs, headYs, headW, family, size, lineSpacing);
+  if (spots) notes.forEach((n, i) => {
+    if (!n.isRest && headYs[i].length) spots.set(spotKey(measure.number, i), { x: xs[i], y: Math.min(...headYs[i]) });
+  });
   drawTupletLabels(svg, notes, xs, groups, beamed, family, LYRIC_FONT_SIZE * scale, lineSpacing, headYs, middleY);
   return xs;
 }
@@ -1082,7 +1238,8 @@ function drawTies(
     const ys = headYs[i];
     if (!ys.length) return;
     const next = notes[i + 1];
-    const nextYs = next && !next.isRest ? headYs[i + 1] : undefined;
+    const sameVoice = !!next && (next.voice ?? 1) === (note.voice ?? 1);
+    const nextYs = sameVoice && !next.isRest ? headYs[i + 1] : undefined;
     const samePitch =
       !!nextYs && nextYs.length === ys.length && ys.every((y, k) => Math.abs(y - nextYs[k]) < 0.01);
     const x1 = xs[i] + headW / 2;
@@ -1096,6 +1253,40 @@ function drawTies(
       svg.appendChild(el("path", { d, fill: "none", style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W }));
     }
   });
+}
+
+/**
+ * Draws a slur from each hammer-on or pull-off note back to the note before it, with an H or P
+ * label above the arc. The arc sits above the staff noteheads.
+ */
+function drawHammerPulls(
+  svg: SVGElement,
+  notes: ScoreNote[],
+  xs: number[],
+  headYs: number[][],
+  headW: number,
+  family: string,
+  size: number,
+  ls: number
+): void {
+  notes.forEach((note, i) => {
+    if (!note.hammerPull || i === 0 || note.isRest) return;
+    const prev = notes[i - 1];
+    if (prev.isRest || (prev.voice ?? 1) !== (note.voice ?? 1)) return;
+    const topOf = (ys: number[]) => (ys.length ? Math.min(...ys) : undefined);
+    const top1 = topOf(headYs[i - 1]);
+    const top2 = topOf(headYs[i]);
+    if (top1 === undefined || top2 === undefined) return;
+    const x1 = xs[i - 1];
+    const x2 = xs[i];
+    hammerArc(svg, xs[i - 1] + headW / 2, xs[i] - headW / 2, top1 - ls * 0.4, top2 - ls * 0.4, ls * 1.2, "", HAMMER_LABEL_SIZE);
+  });
+}
+
+/** Where a sounding note was drawn, used to join hammer-ons and pull-offs across barlines. */
+type Spot = { x: number; y: number };
+function spotKey(measureNumber: number, noteIndex: number): string {
+  return `${measureNumber}:${noteIndex}`;
 }
 
 /** A small sans-serif label centered on x, using the system UI font. */
@@ -1288,18 +1479,42 @@ function fitBeamTips(xs: number[], natural: number[], dir: number): number[] {
   return xs.map((x) => firstY + (x - firstX) * bestSlope + bestShift);
 }
 
-function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
+/**
+ * Each note's onset in quarters from the measure start. A run of voiced notes is one parts group:
+ * its parts sound together, so every part starts at the group's start and the group takes the length of one part.
+ */
+function noteOffsets(notes: ScoreNote[]): number[] {
+  const offsets: number[] = new Array(notes.length).fill(0);
+  let t = 0;
+  let i = 0;
+  while (i < notes.length) {
+    if (notes[i].voice === undefined) {
+      offsets[i] = t;
+      t += noteQuarters(notes[i]);
+      i++;
+      continue;
+    }
+    let end = i;
+    while (end < notes.length && notes[end].voice !== undefined) end++;
+    const partEnd = new Map<number, number>();
+    for (let k = i; k < end; k++) {
+      const v = notes[k].voice as number;
+      const start = partEnd.get(v) ?? t;
+      offsets[k] = start;
+      partEnd.set(v, start + noteQuarters(notes[k]));
+    }
+    t = Math.max(...partEnd.values());
+    i = end;
+  }
+  return offsets;
+}
+
+function beamGroups(notes: ScoreNote[], timeSig: string, starts?: number[]): number[][] {
   const { beat, compound } = beatQuarters(timeSig);
   const groups: number[][] = [];
-  // Explicit `<...>` groups are beamed together as written. Notes outside them use the automatic rules.
-  const explicit = new Map<number, number[]>();
-  notes.forEach((note, i) => {
-    if (note.beamGroup === undefined || beamCount(note) === 0) return;
-    const members = explicit.get(note.beamGroup) ?? [];
-    members.push(i);
-    explicit.set(note.beamGroup, members);
-  });
-  for (const members of explicit.values()) if (members.length >= 2) groups.push(members);
+  // Every beamable note goes through the automatic rules, so an explicit `<...>` boundary never splits
+  // an 8th or 16th run. An explicit `<...>` group still beams together, because its notes share a key
+  // (same duration, same unit) whenever they are beamed as written.
   let cur: number[] = [];
   let curKey: string | null = null;
   const flush = () => {
@@ -1309,10 +1524,10 @@ function beamGroups(notes: ScoreNote[], timeSig: string): number[][] {
   };
   let pos = 0;
   notes.forEach((note, i) => {
+    // Sub-lists (one part) carry their notes' real measure offsets, so beat boundaries stay aligned.
+    if (starts) pos = starts[i];
     const count = beamCount(note);
-    if (note.beamGroup !== undefined && count > 0) {
-      flush();
-    } else if (count === 0) {
+    if (count === 0) {
       flush();
     } else {
       // Triplets group every beat like 16ths. Plain 8ths group every two beats (every beat in compound meters).
@@ -1475,7 +1690,7 @@ function drawNote(
   // Stem and flags. Stems go up when the note sits below the middle line.
   if (note.duration !== "w") {
     const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
-    const stemUp = beam ? beam.up : avgY > middleY;
+    const stemUp = beam ? beam.up : note.voice === 1 ? true : note.voice === 2 ? false : avgY > middleY;
     const stemLen = 3.5 * ls;
     const extreme = stemUp ? Math.min(...ys) : Math.max(...ys);
     const sx = stemUp ? x + headW / 2 - STEM_W / 2 : x - headW / 2 + STEM_W / 2;

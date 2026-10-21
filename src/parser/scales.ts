@@ -120,6 +120,7 @@ export const SCALE_DEFINITIONS: Record<string, ScaleDefinition> = {
 
 /** Parse note string like "C4", "F#3", "Bb2" into MIDI number */
 export function noteToMidi(noteStr: string): number {
+  if (typeof noteStr !== "string") return 60; // middle C default
   const match = noteStr.trim().match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
   if (!match) return 60; // middle C default
   let step = match[1].toUpperCase();

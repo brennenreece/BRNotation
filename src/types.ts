@@ -26,6 +26,9 @@ export interface ScoreNote {
   tuplet?: boolean; // triplet: three notes in the time of two
   beamGroup?: number; // explicit beam group id from `<...>` in the measure
   tied?: boolean;
+  hammerPull?: "h" | "p"; // hammer-on or pull-off: this note is reached from the previous note
+  hammerFrom?: { measure: number; index: number }; // the note the hammer or pull starts from, when it is in an earlier measure
+  voice?: 1 | 2; // part from a `V1:` / `V2:` line; undefined when the block has no parts
   pitches?: NotePitch[]; // for standard notation
   tabPositions?: TabPosition[]; // for tablature
   chordSymbol?: string;
@@ -127,6 +130,8 @@ export interface ChordDiagramData {
   tuning?: string[]; // default ["E", "A", "D", "G", "B", "E"]
   frets: (number | "x")[]; // index 0 is lowest string (E2) or highest? We will standardize: 0 is lowest string (6th string)
   fingers?: (number | string | null)[];
+  /** Per-string dot overrides from `{style,color}` after a fret in `frets:`. Index matches `frets`. */
+  dotOverrides?: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
   baseFret?: number; // 1-based base fret
   /** Row this box sits in when the block uses `row:` lines. */
   row?: number;

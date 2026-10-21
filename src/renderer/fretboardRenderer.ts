@@ -241,8 +241,11 @@ export function renderChordDiagram(
         // Same marker markup as fretboard notes, so both use one dot style
         const g = document.createElementNS(svgNS, "g");
         g.classList.add("br-diagram-marker", "is-note");
-        const dot = createDot(svgNS, shapeFor(data.dotStyle), x, y, dotRadiusFor(stringSpacing, fretSpacing));
-        dot.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(data.dotStyle, false, data.dotColor));
+        const override = data.dotOverrides?.[s] ?? undefined;
+        const dotStyle = override?.style ?? data.dotStyle;
+        const dotColor = override?.color ?? data.dotColor;
+        const dot = createDot(svgNS, shapeFor(dotStyle), x, y, dotRadiusFor(stringSpacing, fretSpacing));
+        dot.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(dotStyle, false, dotColor));
         g.appendChild(dot);
 
         // Finger number if provided
