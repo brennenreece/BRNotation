@@ -118,6 +118,9 @@ export const SCALE_DEFINITIONS: Record<string, ScaleDefinition> = {
   },
 };
 
+/** Guitar is written an octave above its sounding pitch, so staff pitch = sounding pitch + this offset. */
+export const GUITAR_WRITTEN_OCTAVE = 12;
+
 /** Parse note string like "C4", "F#3", "Bb2" into MIDI number */
 export function noteToMidi(noteStr: string): number {
   if (typeof noteStr !== "string") return 60; // middle C default

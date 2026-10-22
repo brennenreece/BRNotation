@@ -33,12 +33,12 @@ export const TAB_FONT_OPTIONS: Record<string, { label: string; family: string }>
  * Values are the notehead height ratio to Bravura (0.250 em), measured from each font.
  */
 export const STAFF_FONT_OPTIONS: Record<string, { label: string; vexflow: string; noteheadScale: number }> = {
-  bravura: { label: "Bravura (standard)", vexflow: "Bravura", noteheadScale: 1 },
-  petaluma: { label: "Petaluma (handwritten)", vexflow: "Petaluma", noteheadScale: 0.762 },
-  leland: { label: "Leland (MuseScore)", vexflow: "Leland", noteheadScale: 0.943 },
-  jazz: { label: "JulesJazz (jazz)", vexflow: "JulesJazz", noteheadScale: 0.926 },
-  gootville: { label: "Gootville (engraved)", vexflow: "Gootville", noteheadScale: 0.926 },
-  musejazz: { label: "MuseJazz (jazz)", vexflow: "MuseJazz", noteheadScale: 0.926 },
+  bravura: { label: "Bravura (standard)", vexflow: "Bravura", noteheadScale: 0.9 },
+  petaluma: { label: "Petaluma (handwritten)", vexflow: "Petaluma", noteheadScale: 0.686 },
+  leland: { label: "Leland (MuseScore)", vexflow: "Leland", noteheadScale: 0.849 },
+  jazz: { label: "JulesJazz (jazz)", vexflow: "JulesJazz", noteheadScale: 0.833 },
+  gootville: { label: "Gootville (engraved)", vexflow: "Gootville", noteheadScale: 0.833 },
+  musejazz: { label: "MuseJazz (jazz)", vexflow: "MuseJazz", noteheadScale: 0.833 },
 };
 
 /** Bundled font data key → CSS family name it is registered under. */

@@ -20,7 +20,7 @@ import {
   ScoreNote,
   TabPosition,
 } from "../types";
-import { TUNING_PRESETS, midiToNote, stringFretToMidi } from "./scales";
+import { GUITAR_WRITTEN_OCTAVE, TUNING_PRESETS, midiToNote, stringFretToMidi } from "./scales";
 
 interface RawChordBox {
   name: string;
@@ -875,7 +875,7 @@ function pitchFromTab(fret: number, str: number, tuning: string[]): NotePitch | 
   if (!Number.isInteger(str) || str < 1 || str > tuning.length) return undefined;
   const openNote = tuning[tuning.length - str];
   if (typeof openNote !== "string" || !openNote.trim()) return undefined;
-  const midi = stringFretToMidi(openNote, fret);
+  const midi = stringFretToMidi(openNote, fret) + GUITAR_WRITTEN_OCTAVE;
   const [, step, accidental, octave] = midiToNote(midi).toLowerCase().match(/^([a-g])(#?)(-?\d+)$/) ?? [];
   if (!step) return undefined;
   return { step: step as NotePitch["step"], accidental: accidental ? "#" : undefined, octave: parseInt(octave, 10) };

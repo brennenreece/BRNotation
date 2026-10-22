@@ -22,7 +22,7 @@ import {
   VexFlow,
 } from "vexflow";
 import { NotationScore, ScoreMeasure, ScoreNote } from "../types";
-import { midiToStringFret, noteToMidi } from "../parser/scales";
+import { GUITAR_WRITTEN_OCTAVE, midiToStringFret, noteToMidi } from "../parser/scales";
 
 export interface VexflowRenderOptions {
   width?: number;
@@ -210,7 +210,7 @@ export function renderVexflowScore(
             // Tab numbering: string 1 = high E. Tuning index 0 = low E, so invert.
             const strIdx = score.tuning.length - tp.str;
             const openNote = score.tuning[strIdx] || "E2";
-            const midi = noteToMidi(openNote) + tp.fret;
+            const midi = noteToMidi(openNote) + tp.fret + GUITAR_WRITTEN_OCTAVE;
             const noteName = midiToVexKey(midi);
             keys.push(noteName.key);
             if (noteName.acc) {
@@ -275,7 +275,7 @@ export function renderVexflowScore(
         } else if (note.pitches && note.pitches.length > 0) {
           // Derive tab position from pitch
           note.pitches.forEach((p) => {
-            const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`);
+            const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`) - GUITAR_WRITTEN_OCTAVE;
             const tf = midiToStringFret(midi, score.tuning);
             if (tf) {
               positions.push({ str: score.tuning.length - tf.strIndex, fret: tf.fret });
