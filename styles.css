@@ -100,12 +100,12 @@
 
 /* Explicit styling for tab fret text */
 .br-notation-svg g[type="TabNote.text"] text,
-.br-notation-svg text[font-size*="13"],
-.br-notation-svg text[font-size*="12"],
-.br-notation-svg text[font-size*="11"],
-.br-notation-svg text[font-size*="10"],
-.br-notation-svg text[font-size*="9"],
-.br-notation-svg text[font-size*="8"] {
+.br-notation-svg text[font-size*="13"]:not(.br-chordgrid-chord-text),
+.br-notation-svg text[font-size*="12"]:not(.br-chordgrid-chord-text),
+.br-notation-svg text[font-size*="11"]:not(.br-chordgrid-chord-text),
+.br-notation-svg text[font-size*="10"]:not(.br-chordgrid-chord-text),
+.br-notation-svg text[font-size*="9"]:not(.br-chordgrid-chord-text),
+.br-notation-svg text[font-size*="8"]:not(.br-chordgrid-chord-text) {
   fill: var(--text-normal) !important;
   font-weight: 700 !important;
 }
@@ -204,7 +204,8 @@
   fill: var(--text-muted);
 }
 
-.br-chordgrid-chord-text {
+.br-chordgrid-chord-text,
+.br-chordgrid-chord-text tspan {
   fill: var(--text-normal);
 }
 

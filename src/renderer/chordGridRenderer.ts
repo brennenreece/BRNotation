@@ -57,6 +57,7 @@ export function applyChordTextStyle(el: Element) {
   el.setAttribute("font-size", `${chordFontSize}px`);
   el.setAttribute("letter-spacing", `${chordFontSpacing}`);
   el.setAttribute("font-weight", `${chordFontWeight}`);
+  (el as SVGElement).style.fontWeight = `${chordFontWeight}`;
 }
 
 export function renderChordGrid(
