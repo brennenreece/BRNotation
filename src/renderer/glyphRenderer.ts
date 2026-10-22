@@ -6,7 +6,7 @@
  */
 import { NotationScore, ScoreMeasure, ScoreNote, NotePitch } from "../types";
 import { applyChordTextStyle } from "./chordGridRenderer";
-import { midiToStringFret, noteToMidi } from "../parser/scales";
+import { GUITAR_WRITTEN_OCTAVE, midiToStringFret, noteToMidi } from "../parser/scales";
 
 export interface GlyphRenderOptions {
   width?: number;
@@ -289,7 +289,7 @@ export function renderGlyphScore(
     }
     drawBarlineRight(svg, xPos + thisMeasureWidth, y0, 4 * lineSpacing, measure.barline, isLastOnLine, family, glyphSize);
 
-    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize), scale, staffSpots);
+    const noteXs = layoutMeasureNotes(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, y0, clef, family, glyphSize, lineSpacing, currentTimeSig, headScale, measureMinGaps(measure, score.tuning, tabSize, isCoupled, headScale, glyphSize, measure.keySignature || score.keySignature), scale, staffSpots, measure.keySignature || score.keySignature);
     // Chord symbols sit above the staff. Lyrics sit below the notation staff (in coupled blocks, above the tab).
     drawNoteTexts(svg, measure.notes, noteXs, y0, lineSpacing, family, scale, chordRoom, lyricRoom, clef, chordDistance, glyphSize * 0.3 * headScale / 2);
 
@@ -381,8 +381,8 @@ function drawCrossMeasureHammers(
 }
 
 /** Per-note minimum gaps, shared by the staff and tab so both rows use one set of positions. */
-function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number): number[] {
-  return partAwareGaps(measure.notes, noteMinGaps(measure.notes, tuning, coupled ? tabSize : 0, headScale, size));
+function measureMinGaps(measure: ScoreMeasure, tuning: string[], tabSize: number, coupled: boolean, headScale: number, size: number, key?: string): number[] {
+  return partAwareGaps(measure.notes, noteMinGaps(staffNotes(measure.notes, key), tuning, coupled ? tabSize : 0, headScale, size));
 }
 
 /**
@@ -598,7 +598,7 @@ function breakSystems(
   const starts: number[] = [];
   const widths: number[] = new Array(score.measures.length).fill(0);
   const natural = score.measures.map((m) => {
-    const gaps = isTabOnly ? tabOnlyMinGaps(m, score.tuning, tabSize) : measureMinGaps(m, score.tuning, tabSize, isCoupled, headScale, glyphSize);
+    const gaps = isTabOnly ? tabOnlyMinGaps(m, score.tuning, tabSize) : measureMinGaps(m, score.tuning, tabSize, isCoupled, headScale, glyphSize, m.keySignature || score.keySignature);
     return measureNaturalWidth(gaps, noteEndInset, noteGap);
   });
   let i = 0;
@@ -713,6 +713,52 @@ const KEY_COUNTS: Record<string, { sharps: number } | { flats: number }> = {
 // Octave of each letter for sharps and flats, following standard key-signature placement.
 const SHARP_OCTAVE_OFFSET: Record<string, number> = { F: 1, C: 1, G: 1, D: 1, A: 0, E: 0, B: 0 };
 const FLAT_OCTAVE_OFFSET: Record<string, number> = { B: 0, E: 1, A: 0, D: 1, G: 0, C: 1, F: 0 };
+
+/**
+ * Accidental each letter carries in a key ("#" or "b"), or none. Used so a note already altered by
+ * the key signature doesn't repeat its sign.
+ */
+function keyAlterations(key: string | undefined): Record<string, "#" | "b"> {
+  const out: Record<string, "#" | "b"> = {};
+  if (!key) return out;
+  const root = key.replace(/\s*(major|minor)$/i, "").trim();
+  const counts = KEY_COUNTS[root] ?? KEY_COUNTS[root.charAt(0).toUpperCase() + root.slice(1)];
+  if (!counts) return out;
+  if ("sharps" in counts) SHARP_ORDER.slice(0, counts.sharps).forEach((l) => (out[l] = "#"));
+  else FLAT_ORDER.slice(0, counts.flats).forEach((l) => (out[l] = "b"));
+  return out;
+}
+
+/** Flat spelling of each sharp black key: C#=Db, D#=Eb, F#=Gb, G#=Ab, A#=Bb. */
+const SHARP_TO_FLAT_STEP: Record<string, string> = { C: "d", D: "e", F: "g", G: "a", A: "b" };
+
+/** True when the key is a flat key, so sharps on black keys are respelled as flats. */
+function isFlatKey(key: string | undefined): boolean {
+  return Object.values(keyAlterations(key)).includes("b");
+}
+
+/**
+ * Notes as they are drawn on the staff: a sharp or flat the key signature already applies is dropped,
+ * while naturals and signs that differ from the key stay. Returns copies, so tab fret mapping still
+ * reads the written accidentals.
+ */
+function staffNotes(notes: ScoreNote[], key: string | undefined): ScoreNote[] {
+  const alt = keyAlterations(key);
+  return notes.map((note) => {
+    if (note.isRest || !note.pitches) return note;
+    const pitches = note.pitches.map((p) => {
+      const letter = p.step.toUpperCase();
+      const keyAcc = alt[letter];
+      // Tab-derived black keys are spelled with sharps, so in a flat key the same note is respelled
+      // with the flat of the next letter up (e.g. A# becomes Bb) to match the key.
+      if (p.accidental === "#" && letter in SHARP_TO_FLAT_STEP && isFlatKey(key)) {
+        return { ...p, step: SHARP_TO_FLAT_STEP[letter] as NotePitch["step"], accidental: "b" as const };
+      }
+      return keyAcc && p.accidental === keyAcc ? { ...p, accidental: undefined } : p;
+    });
+    return { ...note, pitches };
+  });
+}
 
 function drawKeySignature(
   svg: SVGSVGElement,
@@ -1081,7 +1127,7 @@ function tabPositionsFor(note: ScoreNote, tuning: string[]): { str: number; fret
   }
   if (note.pitches && note.pitches.length > 0) {
     return note.pitches.map((p) => {
-      const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`);
+      const midi = noteToMidi(`${p.step}${p.accidental || ""}${p.octave}`) - GUITAR_WRITTEN_OCTAVE;
       const tf = midiToStringFret(midi, tuning);
       return tf ? { str: tuning.length - tf.strIndex, fret: tf.fret } : { str: 1, fret: 0 };
     });
@@ -1110,9 +1156,10 @@ function layoutMeasureNotes(
   headScale: number,
   minGaps?: number[],
   scale = 1,
-  spots?: Map<string, Spot>
+  spots?: Map<string, Spot>,
+  key?: string
 ): number[] {
-  const notes = measure.notes;
+  const notes = staffNotes(measure.notes, key);
   if (!notes.length) return [];
   const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
   const bottomY = y0 + 4 * lineSpacing;
@@ -1147,12 +1194,12 @@ function layoutMeasureNotes(
     const voiceUp = notes[g[0]].voice === 1 ? true : notes[g[0]].voice === 2 ? false : undefined;
     const up = voiceUp ?? avgY > middleY;
     g.forEach((i) => stemUpByNote.set(i, up));
-    // Beamed stems run 3 staff spaces past the notehead furthest from the stem's origin, so the beam clears the whole stack.
+    // Beamed stems run an octave (3.5 staff spaces) past the notehead furthest from the stem's origin, so the beam clears the whole stack.
     const groupExtreme = up ? Math.min(...all) : Math.max(...all);
     const natural = g.map((i) => {
       const ys = headYs[i];
       const extreme = ys.length ? (up ? Math.min(...ys) : Math.max(...ys)) : groupExtreme;
-      return up ? extreme - 3 * lineSpacing : extreme + 3 * lineSpacing;
+      return stemTipY(extreme, up, middleY, lineSpacing);
     });
     const stemXs = g.map((i) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2)));
     const tips = fitBeamTips(stemXs, natural, up ? 1 : -1);
@@ -1170,7 +1217,7 @@ function layoutMeasureNotes(
   if (spots) notes.forEach((n, i) => {
     if (!n.isRest && headYs[i].length) spots.set(spotKey(measure.number, i), { x: xs[i], y: Math.min(...headYs[i]), bottom: Math.max(...headYs[i]), stemUp: stemUpOf(i) });
   });
-  drawTupletLabels(svg, notes, xs, groups, beamed, family, LYRIC_FONT_SIZE * scale, lineSpacing, headYs, middleY);
+  drawTupletLabels(svg, notes, xs, groups, beamed, family, LYRIC_FONT_SIZE * scale, lineSpacing, headYs, middleY, headW);
   return xs;
 }
 
@@ -1188,7 +1235,8 @@ function drawTupletLabels(
   labelSize: number,
   ls: number,
   headYs: number[][],
-  middleY: number
+  middleY: number,
+  labelHeadW: number
 ): void {
   const label = (x: number, y: number) => {
     const t = el("text", {
@@ -1210,11 +1258,22 @@ function drawTupletLabels(
     g.forEach((i) => grouped.add(i));
     const first = beamed.get(g[0]);
     if (!first) continue;
-    // The beam's outer edge sits at the stem tip, so the label goes just beyond it.
-    const midX = (xs[g[0]] + xs[g[g.length - 1]]) / 2;
+    // The label is centered on the group's middle stem, sitting the same gap beyond the beam's
+    // outer edge on either side of the staff. The beam's height at that stem follows the slope
+    // between the first and last stem tips.
     const up = first.up;
-    const y = up ? first.tipY - ls * 0.6 : first.tipY + labelSize + ls * 0.6;
-    label(midX, y);
+    const mid = Math.floor((g.length - 1) / 2);
+    const midIdx = g[mid];
+    const last = beamed.get(g[g.length - 1]);
+    const headW = labelHeadW;
+    const stemX = (i: number) => xs[i] + (up ? headW / 2 - STEM_W / 2 : -(headW / 2 - STEM_W / 2));
+    const x1 = stemX(g[0]);
+    const x2 = stemX(g[g.length - 1]);
+    const t = x2 > x1 ? (stemX(midIdx) - x1) / (x2 - x1) : 0;
+    const tipAtMid = first.tipY + ((last?.tipY ?? first.tipY) - first.tipY) * t;
+    const beamH = ls * 0.5;
+    const y = up ? tipAtMid - ls * 0.6 : tipAtMid + beamH + ls * 0.6;
+    label(stemX(midIdx), y);
   }
   // Unbeamed tuplet notes (e.g. quarter-note triplets) get a label above or below the stem tip.
   notes.forEach((note, i) => {
@@ -1224,7 +1283,7 @@ function drawTupletLabels(
     const up = ys.reduce((a, b) => a + b, 0) / ys.length > middleY;
     const extreme = up ? Math.min(...ys) : Math.max(...ys);
     const tip = up ? extreme - 3.5 * ls : extreme + 3.5 * ls;
-    label(xs[i], up ? tip - ls * 0.6 : tip + labelSize + ls * 0.6);
+    label(xs[i], up ? tip - ls * 0.6 : tip + ls * 0.6);
   });
 }
 
@@ -1447,6 +1506,20 @@ function beatQuarters(timeSig: string): { beat: number; compound: boolean } {
  * (every beat in compound meters), triplets and 16ths and 32nds group every beat. Rests and longer
  * notes break a group. Single notes keep their flags.
  */
+/**
+ * Stem tip for a notehead at `extreme`. Stems run one octave (3.5 staff spaces) from the notehead.
+ * Notes more than an octave beyond the middle line stretch the stem to reach the middle line.
+ */
+function stemTipY(extreme: number, up: boolean, middleY: number, ls: number): number {
+  const octave = 3.5 * ls;
+  if (up) {
+    const tip = extreme - octave;
+    return extreme > middleY + octave ? Math.min(tip, middleY) : tip;
+  }
+  const tip = extreme + octave;
+  return extreme < middleY - octave ? Math.max(tip, middleY) : tip;
+}
+
 /**
  * Port of VexFlow's Beam.calculateSlope: picks the beam slope and vertical shift that keep every
  * stem at least its natural length, while staying close to the ideal slope. Returns each stem's tip.
@@ -1703,13 +1776,12 @@ function drawNote(
   if (note.duration !== "w") {
     const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
     const stemUp = beam ? beam.up : note.voice === 1 ? true : note.voice === 2 ? false : avgY > middleY;
-    const stemLen = 3.5 * ls;
     const extreme = stemUp ? Math.min(...ys) : Math.max(...ys);
     const sx = stemUp ? x + headW / 2 - STEM_W / 2 : x - headW / 2 + STEM_W / 2;
     // The stem starts at the head farthest from its tip so it touches every head in a chord.
     const far = stemUp ? Math.max(...ys) : Math.min(...ys);
     const sy1 = far;
-    const sy2 = beam ? beam.tipY : stemUp ? extreme - stemLen : extreme + stemLen;
+    const sy2 = beam ? beam.tipY : stemTipY(extreme, stemUp, middleY, ls);
     svg.appendChild(
       el("line", { x1: sx, x2: sx, y1: sy1, y2: sy2, style: "stroke: var(--text-normal, #000)", "stroke-width": STEM_W })
     );

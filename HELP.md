@@ -149,6 +149,8 @@ c4/8t     C, triplet eighth note (three in the time of two)
 - Wrap notes in `< >` to mark them as one beam group, such as `| :8t <g4 g4 g4> <g4 g4 g4> |`. The `< >` marking does not force a beam break, so beaming still follows the automatic rules. A group should not cross a barline.
 - Add `~` after a note to tie it to the next note of the same pitch, such as `| :8t <g4~ g4 g4> |` or `| c4/h~ c4/h |`. The tie is drawn as an arc on both the staff and the tab. A tie that reaches a barline is drawn as a short arc at the measure's right edge.
 - Octave 4 is the octave that starts at middle C.
+- Staff notes from tab are written an octave above the sounding pitch, as guitar music is. A pitch you type yourself, such as `c4`, is read literally.
+- With a `key:` signature, a sharp or flat that matches the key is not repeated on the staff. A natural appears only when it cancels a key accidental. In a flat key, sharp notes derived from tab are respelled as flats, such as A# as Bb.
 
 ### Rests
 
@@ -349,7 +351,7 @@ key: G
 - The `fret/string` pair inside the parentheses sets the tab position.
 - Keep the pitch and the tab position consistent with the tuning. The plugin does not check this for you.
 
-You can leave out the pitch and write just the `fret/string` pair. The staff note is then worked out from the block's `tuning:`, so `5/3` in standard tuning shows as C4 on the staff:
+You can leave out the pitch and write just the `fret/string` pair. The staff note is then worked out from the block's `tuning:`. Guitar is written an octave above its sounding pitch, so `5/3` in standard tuning shows as C5 on the staff (C4 sounding):
 
 ```brnotation
 mode: coupled
