@@ -214,12 +214,13 @@
    ========================================================================== */
 
 .br-diagram {
-  --br-diagram-title-size: 16px;
+  --br-diagram-title-size: 21px;
   --br-diagram-label-size: 9px;
   --br-diagram-aux-size: 11px;
-  --br-diagram-muted-size: 12px;
   --br-diagram-line-color: #000;
   --br-diagram-line-width: 1.5;
+  --br-diagram-muted-width: 2.5;
+  --br-diagram-root-fret-size: 18px;
   --br-diagram-nut-width: 4;
   --br-diagram-string-color: #000;
   --br-diagram-dot-fill: var(--text-normal);
@@ -371,15 +372,22 @@
   stroke-width: var(--br-diagram-line-width);
 }
 
-.br-diagram-muted {
-  fill: var(--br-diagram-aux-color);
-  font-size: var(--br-diagram-muted-size);
-  font-family: var(--font-sans);
+.br-diagram-muted line {
+  stroke: var(--br-diagram-aux-color);
+  stroke-width: var(--br-diagram-muted-width);
+  stroke-linecap: round;
 }
 
 .br-diagram-aux {
   fill: var(--br-diagram-aux-color);
   font-size: var(--br-diagram-aux-size);
+  font-family: var(--font-sans);
+}
+
+.br-diagram-root-fret {
+  fill: var(--text-normal);
+  font-size: var(--br-diagram-root-fret-size);
+  font-weight: 700;
   font-family: var(--font-sans);
 }
 

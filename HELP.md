@@ -75,7 +75,7 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `name:` or `chord:` | chord | Chord name shown above the diagram. |
 | `frets:` | chord | Fret for each string, or `x` to mute. |
 | `fingers:` | chord | Finger number for each string, or `-` for none. |
-| `base-fret:` or `basefret:` | chord | Fret number of the top of the diagram. Defaults to 1. |
+| `base-fret:` or `basefret:` | chord | Fret number of the top of the diagram. Defaults to one fret below the lowest fretted note, or 1 if the box uses an open string or fret 1. |
 | `root:` | fretboard | Root note of the scale, such as `A` or `F#`. |
 | `scale:` | fretboard | Scale name from [Tunings and scales](#tunings-and-scales). |
 | `base-fret:` | fretboard | First fret shown. The map keeps a 12-fret span from there. Default starts at fret 0. |
@@ -294,7 +294,7 @@ Durations are set with a directive written as its own token, for example `:q`. T
 :h 0/6         half note
 ```
 
-Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteenth, `:32` thirty-second. A dot after the value is not supported yet.
+Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteenth, `:32` thirty-second. Add a dot after the value to make every following note dotted, for example `:q.` or `:h.`. A duration written on a note, such as `c4/q`, overrides the sticky dot for that note.
 
 - **Strings are numbered 1 to 6.** String 1 is the highest string (high E, E4 in standard tuning) and string 6 is the lowest (low E, E2). The order from string 6 to string 1 is low E, A, D, G, B, high E. A 4-string bass uses strings 1 to 4.
 - A rest is `r`. It uses the current duration, like a note.
@@ -475,7 +475,8 @@ base-fret: 1
 
 **Shared properties:**
 - `fingers:` lists the finger number for each string. Use `-` for no finger.
-- `base-fret:` sets the top fret shown. Use a higher number for chords higher up the neck.
+- `base-fret:` sets the top fret shown. If you leave it out, the box starts one fret below its lowest fretted note, so the chord is not on the top fret. A chord with an open string or fret 1 starts at the nut. The number appears beside the box.
+- A `{root}` note shows its own fret number beside the box, on that note's row, in place of the base fret. It looks the same as `{tone-ring}`.
 
 ```brnotation
 type: chord
@@ -497,13 +498,24 @@ base-fret: 2
 
 You can also enter notes using `fret/string` notation (like tab and fretboard diagrams). Unlisted strings are muted, which is often simpler than listing all six strings:
 
+Add `=label` after a note to show text in its dot, the same as fretboard dots, such as `=R` or `=b3`. A `fingers:` number on that string takes priority over the label:
+
 ```brnotation
 type: chord
 name: Am7
 notes: 0/6 2/4 0/3 1/2 0/1
 ```
 
-is equivalent to `frets: x 0 2 0 1 0`. You can style dots the same way as in fretboard diagrams:
+is equivalent to `frets: x 0 2 0 1 0`. You can style dots the same way as in fretboard diagrams. Labels work the same way:
+
+```brnotation
+type: chord
+name: Bb6
+notes: 6/6{tone-ring}=2 5/4=1 7/3=4 6/2=3
+base-fret: 5
+```
+
+Each dot's label is drawn inside it. You can style dots the same way as in fretboard diagrams:
 
 ```brnotation
 type: chord
@@ -672,7 +684,7 @@ Chord boxes and fretboard maps share one dot style. Set it per block with `style
 | `outlined` | All dots outlined, with a light fill. |
 | `ghost` | White fill with a dashed outline, for optional or passing notes. |
 | `accent-outline` | Accent-coloured ring on a background-coloured dot. |
-| `tone-ring` | Thick outline, for emphasis without a fill. |
+| `tone-ring` | Thick outline, for emphasis without a fill. In chord boxes, `{root}` looks the same. |
 | `muted` | Low-contrast dot, for background or avoid notes. |
 | `square` | Square dot instead of a circle. |
 | `diamond` | Diamond dot instead of a circle. |

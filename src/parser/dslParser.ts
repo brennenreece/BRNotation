@@ -27,11 +27,25 @@ interface RawChordBox {
   frets: (number | "x")[];
   fingers: (string | number | null)[];
   dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
+  labels: (string | null)[];
   baseFret: number;
   /** Index of the row this box belongs to; a `row:` line starts a new row. */
   row: number;
 }
 
+
+/**
+ * Base fret for a chord box without base-fret:. Starts at the nut when the chord uses an open
+ * string or fret 1; otherwise starts one fret above the lowest fretted note, so the chord
+ * does not begin on the top fret of the box.
+ */
+function autoBaseFret(frets: (number | "x")[]): number {
+  const fretted = frets.filter((f): f is number => typeof f === "number" && f > 0);
+  if (fretted.length === 0) return 1;
+  const lowest = Math.min(...fretted);
+  const usesNut = lowest === 1 || frets.some((f) => f === 0);
+  return usesNut ? 1 : lowest - 1;
+}
 
 /**
  * Converts DiagramNote[] to a frets array (6 strings, low E to high E),
@@ -40,24 +54,28 @@ interface RawChordBox {
 function notesToFrets(notes: DiagramNote[]): {
   frets: (number | "x")[];
   dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
+  labels: (string | null)[];
 } {
-  const fretMap = new Map<number, { fret: number; style?: DiagramDotStyle | "root"; color?: DiagramColor }>();
+  const fretMap = new Map<number, { fret: number; style?: DiagramDotStyle | "root"; color?: DiagramColor; label?: string }>();
   for (const note of notes) {
-    fretMap.set(note.str, { fret: note.fret, style: note.style, color: note.color });
+    fretMap.set(note.str, { fret: note.fret, style: note.style, color: note.color, label: note.label });
   }
   const frets: (number | "x")[] = [];
   const dotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[] = [];
+  const labels: (string | null)[] = [];
   for (let str = 6; str >= 1; str--) {
     const entry = fretMap.get(str);
     if (entry) {
       frets.push(entry.fret);
       dotOverrides.push(entry.style || entry.color ? { style: entry.style, color: entry.color } : null);
+      labels.push(entry.label ?? null);
     } else {
       frets.push("x");
       dotOverrides.push(null);
+      labels.push(null);
     }
   }
-  return { frets, dotOverrides };
+  return { frets, dotOverrides, labels };
 }
 
 /** `defaultTuning` is the global setting; a `tuning:` line in the block overrides it. */
@@ -85,7 +103,8 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
   let chordFingers: (string | number | null)[] = [];
   let chordDotOverrides: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[] = [];
   let chordNotes: DiagramNote[] | undefined = undefined; // notes: for chord blocks
-  let baseFret = 1;
+  // 0 means base-fret: was not given; chord boxes then use their lowest fretted number
+  let baseFret = 0;
   let chordColumns: number | undefined = undefined;
   let chordFont: string | undefined = undefined;
   let chordFretCount: number | undefined = undefined;
@@ -168,14 +187,15 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
       chordNotes = notesArray.map(n => ({ ...n, linkFromPrevious: undefined }));
       
       // If building a chord, apply notes directly to the pending/current chord
-      const { frets: notesFrets, dotOverrides: notesDotOverrides } = notesToFrets(chordNotes);
+      const { frets: notesFrets, dotOverrides: notesDotOverrides, labels: notesLabels } = notesToFrets(chordNotes);
       if (!pendingChord && chordName) {
         // Create a new chord if notes: comes before frets:
-        pendingChord = { name: chordName, frets: notesFrets, fingers: chordFingers, dotOverrides: notesDotOverrides, baseFret, row: chordRow };
+        pendingChord = { name: chordName, frets: notesFrets, fingers: chordFingers, dotOverrides: notesDotOverrides, labels: notesLabels, baseFret, row: chordRow };
       } else if (pendingChord) {
         // Update existing chord
         pendingChord.frets = notesFrets;
         pendingChord.dotOverrides = notesDotOverrides;
+        pendingChord.labels = notesLabels;
       }
       continue;
     }
@@ -277,7 +297,7 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
       chordFrets = [0, 0, 0, 0, 0, 0];
       chordFingers = [];
       chordDotOverrides = [];
-      baseFret = 1;
+      baseFret = 0;
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
@@ -299,7 +319,7 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
         chordDotOverrides.push({ style: style as DiagramDotStyle | "root" | undefined, color: validColor ? (color as DiagramColor | undefined) : undefined });
         return parseInt(om[1], 10);
       });
-      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, baseFret, row: chordRow };
+      pendingChord = { name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, labels: [], baseFret, row: chordRow };
       if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "chord";
       continue;
     }
@@ -393,14 +413,15 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
     return { mode, rawText, chordGridScore, errors };
   } else if (mode === "chord") {
     if (pendingChord) rawChordBoxes.push(pendingChord);
-    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, baseFret, row: chordRow });
+    if (rawChordBoxes.length === 0) rawChordBoxes.push({ name: chordName, frets: chordFrets, fingers: chordFingers, dotOverrides: chordDotOverrides, labels: [], baseFret, row: chordRow });
     const chordBoxes: ChordDiagramData[] = rawChordBoxes.map((box) => ({
       name: box.name,
       tuning,
       frets: box.frets,
       fingers: box.fingers,
       dotOverrides: box.dotOverrides,
-      baseFret: box.baseFret,
+      labels: box.labels,
+      baseFret: box.baseFret || autoBaseFret(box.frets),
       dotStyle,
       dotColor,
       numFrets: chordFretCount,
@@ -623,6 +644,7 @@ function parseNotationContent(
   let stickyDuration: DurationType = "q";
   // `:8t` makes following notes triplets until the next duration directive.
   let stickyTuplet = false;
+  let stickyDots = 0;
   // `<` opens an explicit beam group and `>` closes it. Notes inside share one group id.
   let beamGroupCount = 0;
   let openBeamGroup: number | undefined;
@@ -671,10 +693,11 @@ function parseNotationContent(
         if (closes) openBeamGroup = undefined;
         continue;
       }
-      const dirMatch = token.match(/^:([whq]|8|16|32)(t?)$/i);
+      const dirMatch = token.match(/^:([whq]|8|16|32)(\.?)(t?)$/i);
       if (dirMatch) {
         stickyDuration = dirMatch[1].toLowerCase() as DurationType;
-        stickyTuplet = dirMatch[2] === "t" || dirMatch[2] === "T";
+        stickyDots = dirMatch[2] === "." ? 1 : 0;
+        stickyTuplet = dirMatch[3] === "t" || dirMatch[3] === "T";
         continue;
       }
       if (token.startsWith('"') && token.endsWith('"')) {
@@ -691,7 +714,7 @@ function parseNotationContent(
         }
         continue;
       }
-      const scoreNote = parseNoteToken(token, mode, stickyDuration, tuning);
+      const scoreNote = parseNoteToken(token, mode, stickyDuration, tuning, stickyDots);
       if (scoreNote && pendingHammerPull) {
         scoreNote.hammerPull = pendingHammerPull;
         scoreNote.hammerFrom = lastSounding;
@@ -846,7 +869,7 @@ function splitNoteAnnotations(token: string): { base: string; above?: string; be
   return result;
 }
 
-/** Parses a single note or chord token. `defaultDuration` is the sticky `:dur` value in effect. */
+/** Parses a single note or chord token. `defaultDuration` and `defaultDots` come from the sticky `:dur` directive in effect. */
 /** Staff pitch for a fret/string position, from the block tuning (string 1 = highest). */
 function pitchFromTab(fret: number, str: number, tuning: string[]): NotePitch | undefined {
   if (!Number.isInteger(str) || str < 1 || str > tuning.length) return undefined;
@@ -862,12 +885,13 @@ function parseNoteToken(
   token: string,
   mode: "notation" | "tab" | "coupled",
   defaultDuration: DurationType = "q",
-  tuning: string[] = TUNING_PRESETS.standard.notes
+  tuning: string[] = TUNING_PRESETS.standard.notes,
+  defaultDots = 0
 ): ScoreNote | null {
   const annotated = splitNoteAnnotations(token);
   if (!annotated) return null;
   if (annotated.base !== token) {
-    const note = parseNoteToken(annotated.base, mode, defaultDuration, tuning);
+    const note = parseNoteToken(annotated.base, mode, defaultDuration, tuning, defaultDots);
     if (!note) return null;
     if (annotated.above !== undefined) note.textAbove = annotated.above;
     if (annotated.below !== undefined) note.textBelow = annotated.below;
@@ -894,7 +918,7 @@ function parseNoteToken(
       id,
       duration: restMatch[1] ? (restMatch[1].toLowerCase() as DurationType) : defaultDuration,
       isRest: true,
-      dots: restMatch[2] === "." ? 1 : 0,
+      dots: restMatch[1] ? (restMatch[2] === "." ? 1 : 0) : defaultDots,
     };
   }
 
@@ -914,7 +938,7 @@ function parseNoteToken(
       id,
       duration: defaultDuration,
       isRest: false,
-      dots: 0,
+      dots: defaultDots,
       tied,
       tabPositions: [{ str, fret, technique }],
       ...(pitches ? { pitches } : {}),
@@ -926,7 +950,7 @@ function parseNoteToken(
   if (chordBracketMatch) {
     const inner = chordBracketMatch[1];
     const duration = chordBracketMatch[2] ? (chordBracketMatch[2].toLowerCase() as DurationType) : defaultDuration;
-    const dots = chordBracketMatch[3] === "." ? 1 : 0;
+    const dots = chordBracketMatch[3] === "." ? 1 : chordBracketMatch[2] ? 0 : defaultDots;
     const tied = chordBracketMatch[4] === "~";
 
     const parts = inner.split(",").map((p) => p.trim());
@@ -979,7 +1003,7 @@ function parseNoteToken(
     const tabFret = noteMatch[4] ? parseInt(noteMatch[4], 10) : undefined;
     const tabStr = noteMatch[5] ? parseInt(noteMatch[5], 10) : undefined;
     const duration = noteMatch[6] ? (noteMatch[6].toLowerCase() as DurationType) : defaultDuration;
-    const dots = noteMatch[7] === "." ? 1 : 0;
+    const dots = noteMatch[6] ? (noteMatch[7] === "." ? 1 : 0) : defaultDots;
     const tuplet = noteMatch[8] === "t" || noteMatch[8] === "T";
     const tied = noteMatch[9] === "~";
 

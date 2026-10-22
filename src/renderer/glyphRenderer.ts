@@ -324,8 +324,9 @@ export function renderGlyphScore(
 }
 
 /**
- * One hammer-on or pull-off slur from x1 to x2, drawn above the notes at height `top`. The curve
- * rises to its peak and returns, with the H or P label centred above it.
+ * One hammer-on or pull-off slur from x1 to x2 at the notes' heights y1 and y2. The slur sits
+ * above the heads by default and below them when `below` is true, which is the side opposite
+ * the stem. The curve bulges away from the notes and the H or P label sits on its apex.
  */
 function hammerArc(
   svg: SVGElement,
@@ -335,17 +336,19 @@ function hammerArc(
   y2: number,
   rise: number,
   label: string,
-  textSize: number
+  textSize: number,
+  below = false
 ): void {
   // Height grows with the span but is capped at `rise`, and the control points sit inside the span
   // so the curve leaves each head at a gentle angle rather than straight up.
   const span = x2 - x1;
   const h = Math.min(rise, span * 0.11) * 0.5;
+  const dir = below ? 1 : -1;
   const dx = span * 0.3;
-  const d = `M ${x1} ${y1} C ${x1 + dx} ${y1 - h} ${x2 - dx} ${y2 - h} ${x2} ${y2}`;
+  const d = `M ${x1} ${y1} C ${x1 + dx} ${y1 + dir * h} ${x2 - dx} ${y2 + dir * h} ${x2} ${y2}`;
   svg.appendChild(el("path", { d, class: "br-hammer-arc", "stroke-width": STEM_W, "stroke-linecap": "round" }));
-  const apex = (y1 + y2) / 2 - h * 0.75;
-  if (label) svg.appendChild(noteText((x1 + x2) / 2, apex - textSize * 0.5, label, textSize));
+  const apex = (y1 + y2) / 2 + dir * h * 0.75;
+  if (label) svg.appendChild(noteText((x1 + x2) / 2, apex + (below ? textSize : -textSize * 0.5), label, textSize));
 }
 
 /**
@@ -368,7 +371,11 @@ function drawCrossMeasureHammers(
       const from = spots.get(spotKey(note.hammerFrom.measure, note.hammerFrom.index));
       const to = spots.get(spotKey(measure.number, i));
       if (!from || !to) return;
-      hammerArc(svg, from.x + headHalf, to.x - headHalf, from.y - unit * 0.4, to.y - unit * 0.4, unit * 1.2, showLabel ? (note.hammerPull === "h" ? "H" : "P") : "", textSize);
+      // Arcs leave the destination's stem side: above the top head when the stem points down, below the bottom head when it points up.
+      const below = to.stemUp === true;
+      const y1 = below ? from.bottom + unit * 0.4 : from.y - unit * 0.4;
+      const y2 = below ? to.bottom + unit * 0.4 : to.y - unit * 0.4;
+      hammerArc(svg, from.x + headHalf, to.x - headHalf, y1, y2, unit * 1.2, showLabel ? (note.hammerPull === "h" ? "H" : "P") : "", textSize, below);
     });
   }
 }
@@ -992,7 +999,7 @@ function drawTabMeasure(
   if (spots) measure.notes.forEach((note, i) => {
     if (note.isRest) return;
     const top = tabY0 + (Math.min(...tabPositionsFor(note, tuning).map((p) => p.str)) - 1) * tabSpacing;
-    spots.set(spotKey(measure.number, i), { x: centres[i], y: top });
+    spots.set(spotKey(measure.number, i), { x: centres[i], y: top, bottom: top });
   });
   measure.notes.forEach((note, i) => {
     const x = centres[i];
@@ -1130,6 +1137,8 @@ function layoutMeasureNotes(
       })
     : beamGroups(notes, timeSig);
   const headW = size * 0.3 * headScale;
+  const stemUpByNote = new Map<number, boolean>();
+  const stemUpOf = (i: number) => stemUpByNote.get(i);
   for (const g of groups) {
     const all = g.flatMap((i) => headYs[i]);
     if (!all.length) continue;
@@ -1137,6 +1146,7 @@ function layoutMeasureNotes(
     // Voice 1 stems always go up and voice 2 stems always go down, so the parts stay apart
     const voiceUp = notes[g[0]].voice === 1 ? true : notes[g[0]].voice === 2 ? false : undefined;
     const up = voiceUp ?? avgY > middleY;
+    g.forEach((i) => stemUpByNote.set(i, up));
     // Beamed stems run 3 staff spaces past the notehead furthest from the stem's origin, so the beam clears the whole stack.
     const groupExtreme = up ? Math.min(...all) : Math.max(...all);
     const natural = g.map((i) => {
@@ -1156,9 +1166,9 @@ function layoutMeasureNotes(
     drawBeamGroup(svg, notes, g, xs, beamed, size, lineSpacing, headScale);
   }
   drawTies(svg, notes, xs, headYs, headW, width, xStart, lineSpacing);
-  drawHammerPulls(svg, notes, xs, headYs, headW, family, size, lineSpacing);
+  drawHammerPulls(svg, notes, xs, headYs, headW, family, size, lineSpacing, (i) => stemUpOf(i) ?? false);
   if (spots) notes.forEach((n, i) => {
-    if (!n.isRest && headYs[i].length) spots.set(spotKey(measure.number, i), { x: xs[i], y: Math.min(...headYs[i]) });
+    if (!n.isRest && headYs[i].length) spots.set(spotKey(measure.number, i), { x: xs[i], y: Math.min(...headYs[i]), bottom: Math.max(...headYs[i]), stemUp: stemUpOf(i) });
   });
   drawTupletLabels(svg, notes, xs, groups, beamed, family, LYRIC_FONT_SIZE * scale, lineSpacing, headYs, middleY);
   return xs;
@@ -1267,24 +1277,26 @@ function drawHammerPulls(
   headW: number,
   family: string,
   size: number,
-  ls: number
+  ls: number,
+  stemUpAt: (i: number) => boolean
 ): void {
   notes.forEach((note, i) => {
     if (!note.hammerPull || i === 0 || note.isRest) return;
     const prev = notes[i - 1];
     if (prev.isRest || (prev.voice ?? 1) !== (note.voice ?? 1)) return;
-    const topOf = (ys: number[]) => (ys.length ? Math.min(...ys) : undefined);
-    const top1 = topOf(headYs[i - 1]);
-    const top2 = topOf(headYs[i]);
-    if (top1 === undefined || top2 === undefined) return;
-    const x1 = xs[i - 1];
-    const x2 = xs[i];
-    hammerArc(svg, xs[i - 1] + headW / 2, xs[i] - headW / 2, top1 - ls * 0.4, top2 - ls * 0.4, ls * 1.2, "", HAMMER_LABEL_SIZE);
+    // The slur sits opposite the destination note's stem: above the heads if the stem points down, below if it points up.
+    const below = stemUpAt(i);
+    const edge = (ys: number[]) => (ys.length ? (below ? Math.max(...ys) : Math.min(...ys)) : undefined);
+    const y1 = edge(headYs[i - 1]);
+    const y2 = edge(headYs[i]);
+    if (y1 === undefined || y2 === undefined) return;
+    const off = below ? ls * 0.4 : -ls * 0.4;
+    hammerArc(svg, xs[i - 1] + headW / 2, xs[i] - headW / 2, y1 + off, y2 + off, ls * 1.2, "", HAMMER_LABEL_SIZE, below);
   });
 }
 
 /** Where a sounding note was drawn, used to join hammer-ons and pull-offs across barlines. */
-type Spot = { x: number; y: number };
+type Spot = { x: number; y: number; bottom: number; stemUp?: boolean };
 function spotKey(measureNumber: number, noteIndex: number): string {
   return `${measureNumber}:${noteIndex}`;
 }

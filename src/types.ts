@@ -132,6 +132,8 @@ export interface ChordDiagramData {
   fingers?: (number | string | null)[];
   /** Per-string dot overrides from `{style,color}` after a fret in `frets:`. Index matches `frets`. */
   dotOverrides?: ({ style?: DiagramDotStyle | "root"; color?: DiagramColor } | null)[];
+  /** Per-string text from `notes:` `=label`, shown in the dot when no finger number is set. Index matches `frets`. */
+  labels?: (string | null)[];
   baseFret?: number; // 1-based base fret
   /** Row this box sits in when the block uses `row:` lines. */
   row?: number;

@@ -165,14 +165,28 @@ export function renderChordDiagram(
   const gridHeight = numFrets * fretSpacing;
   const stringSpacing = gridWidth / (numStrings - 1);
 
-  // Base fret indicator (e.g. "3fr")
-  if (baseFret > 1) {
+  // Fret number beside the box. A {root} dot's fret takes its place on that dot's row;
+  // otherwise the base fret is shown on the first row.
+  const rootIndex = data.dotOverrides?.findIndex((o) => o?.style === "root") ?? -1;
+  const rootFret = rootIndex >= 0 ? data.frets[rootIndex] : undefined;
+  const rootRow = typeof rootFret === "number" && rootFret > 0 ? rootFret - (baseFret - 1) : NaN;
+  if (rootRow >= 1 && rootRow <= numFrets) {
+    const rootText = document.createElementNS(svgNS, "text");
+    // Left of the low E dot, which sits on the box edge; centred on the dot's row
+    rootText.setAttribute("x", `${padLeft - 12}`);
+    rootText.setAttribute("y", `${padTop + (rootRow - 0.5) * fretSpacing}`);
+    rootText.setAttribute("dominant-baseline", "central");
+    rootText.setAttribute("text-anchor", "end");
+    rootText.classList.add("br-diagram-root-fret");
+    rootText.textContent = `${rootFret}`;
+    svg.appendChild(rootText);
+  } else if (baseFret > 1) {
     const baseText = document.createElementNS(svgNS, "text");
     baseText.setAttribute("x", `${padLeft - 8}`);
     baseText.setAttribute("y", `${padTop + fretSpacing * 0.7}`);
     baseText.setAttribute("text-anchor", "end");
     baseText.classList.add("br-diagram-aux");
-    baseText.textContent = `${baseFret}fr`;
+    baseText.textContent = `${baseFret}`;
     svg.appendChild(baseText);
   }
 
@@ -217,14 +231,20 @@ export function renderChordDiagram(
     const x = padLeft + s * stringSpacing;
 
     if (String(fretVal).toLowerCase() === "x") {
-      // Muted string 'X'
-      const xText = document.createElementNS(svgNS, "text");
-      xText.setAttribute("x", `${x}`);
-      xText.setAttribute("y", `${padTop - 8}`);
-      xText.setAttribute("text-anchor", "middle");
-      xText.classList.add("br-diagram-muted");
-      xText.textContent = "✕";
-      svg.appendChild(xText);
+      // Muted string 'X', drawn as two strokes so its weight matches the open-string circle
+      const half = 4;
+      const cy = padTop - 12;
+      const xMark = document.createElementNS(svgNS, "g");
+      xMark.classList.add("br-diagram-muted");
+      for (const [dx1, dy1, dx2, dy2] of [[-half, -half, half, half], [-half, half, half, -half]]) {
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", `${x + dx1}`);
+        line.setAttribute("y1", `${cy + dy1}`);
+        line.setAttribute("x2", `${x + dx2}`);
+        line.setAttribute("y2", `${cy + dy2}`);
+        xMark.appendChild(line);
+      }
+      svg.appendChild(xMark);
     } else if (fretVal === 0) {
       // Open string 'O'
       const oCircle = document.createElementNS(svgNS, "circle");
@@ -245,18 +265,21 @@ export function renderChordDiagram(
         const dotStyle = override?.style ?? data.dotStyle;
         const dotColor = override?.color ?? data.dotColor;
         const dot = createDot(svgNS, shapeFor(dotStyle), x, y, dotRadiusFor(stringSpacing, fretSpacing));
-        dot.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(dotStyle, false, dotColor));
+        // {root} in a chord box looks exactly like tone-ring; its fret number is drawn beside the box
+        const classStyle = dotStyle === "root" ? "tone-ring" : dotStyle;
+        dot.classList.add("br-diagram-dot", "is-note", ...dotStyleClass(classStyle, false, dotColor));
         g.appendChild(dot);
 
-        // Finger number if provided
+        // Finger number if provided; otherwise a `notes:` =label, as on fretboard dots
         const finger = data.fingers ? data.fingers[s] : null;
-        if (finger && finger !== "-") {
+        const dotText = finger && finger !== "-" ? `${finger}` : data.labels?.[s] ?? null;
+        if (dotText) {
           const fText = document.createElementNS(svgNS, "text");
           fText.setAttribute("x", `${x}`);
           fText.setAttribute("y", `${y + 3}`);
           fText.setAttribute("text-anchor", "middle");
           fText.classList.add("br-diagram-label");
-          fText.textContent = `${finger}`;
+          fText.textContent = dotText;
           g.appendChild(fText);
         }
         svg.appendChild(g);
