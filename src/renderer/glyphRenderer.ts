@@ -178,7 +178,9 @@ export function renderGlyphScore(
   const maxLift = hasChords && !isTabOnly ? maxChordLift(score, clef, lineSpacing) : 0;
   // The room is at least the original chord room, so default layouts keep their height.
   const aboveRoom = hasTextAbove && !isTabOnly ? NOTE_TEXT_ROOM * scale : 0;
-  const chordRoom = ((hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0) + (isTabOnly ? bendRoom : 0);
+  // Notes above the top staff line (with their ledger lines) need room too, or they clip at the top of the block.
+  const staffRoom = !isTabOnly ? staffRise(score, clef, lineSpacing) : 0;
+  const chordRoom = ((hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom, staffRoom) : staffRoom) + (isTabOnly ? bendRoom : 0);
   // Below-staff room is reserved for lyrics and for {below:} note text.
   const lyricRoom = (hasLyrics || hasTextBelow) && !isTabOnly ? LYRIC_ROOM * scale : 0;
   const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 2 : staffHeight) + chordRoom + lyricRoom;
@@ -1019,6 +1021,25 @@ function staffDrop(score: NotationScore, clef: string, lineSpacing: number): num
     }
   }
   return lowest > 0 ? Math.ceil(lowest) + 4 : 0;
+}
+/**
+ * How far (px) notes reach above the top staff line, including ledger lines.
+ * Returns 0 when every note sits on or below the staff, so no extra top room is reserved.
+ */
+function staffRise(score: NotationScore, clef: string, lineSpacing: number): number {
+  const bottomStep = BOTTOM_LINE_STEP[clef] ?? BOTTOM_LINE_STEP.treble;
+  const bottomRel = 4 * lineSpacing;
+  let highest = 0;
+  for (const m of score.measures) {
+    for (const n of m.notes) {
+      if (n.isRest || !n.pitches?.length) continue;
+      for (const p of n.pitches) {
+        const yHead = bottomRel - ((stepOf(p) - bottomStep) * lineSpacing) / 2;
+        highest = Math.max(highest, -(yHead - lineSpacing / 2));
+      }
+    }
+  }
+  return highest > 0 ? Math.ceil(highest) + 4 : 0;
 }
 /** Approximate width (px) of a chord symbol drawn at the given scale, from its character count. */
 function chordTextWidth(text: string, scale: number): number {
