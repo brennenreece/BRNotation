@@ -849,7 +849,7 @@ function splitNoteAnnotations(token: string): { base: string; above?: string; be
   const m = token.match(/^(.+?)\{([^{}]*)\}$/);
   if (!m) return { base: token, circled: false };
   // Tab bend braces (`7/3{b1/2}`) belong to the tab token, not to a note annotation.
-  if (/^\d+\/\d+$/.test(m[1]) && /^[br]/i.test(m[2])) return { base: token, circled: false };
+  if (/^\d+\/\d+$/.test(m[1]) && /^[br](\d+\/\d+|full)?(,[br](\d+\/\d+|full)?)*$/i.test(m[2].trim())) return { base: token, circled: false };
   const body = m[2].trim();
   const result: { base: string; above?: string; below?: string; circled: boolean } = { base: m[1], circled: false };
   // Items are `above:text`, `below:text`, or `circle`. Text may be quoted to include spaces.
