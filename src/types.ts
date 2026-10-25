@@ -12,10 +12,18 @@ export interface NotePitch {
   accidental?: "#" | "b" | "n" | "##" | "bb";
 }
 
+/** One bend (`b`) or release (`r`) in quarter tones: 1/4 = 1, 1/2 = 2, full = 4. */
+export interface BendAction {
+  kind: "bend" | "release";
+  quarterTones: number;
+}
+
 export interface TabPosition {
   str: number; // 1-indexed (1 is highest string, high E)
   fret: number;
   technique?: "h" | "p" | "b" | "s" | "v" | "pm";
+  /** Bend and release actions in order, from `7/3{b1/2,rfull}`. Steps are in quarter tones. */
+  bends?: BendAction[];
 }
 
 export interface ScoreNote {

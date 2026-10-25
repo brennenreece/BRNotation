@@ -11,6 +11,7 @@ import {
   DiagramColor,
   DiagramDotStyle,
   DiagramNote,
+  BendAction,
   DurationType,
   FretboardScaleData,
   NotationScore,
@@ -847,6 +848,8 @@ function tokenizeMeasure(measureStr: string): string[] {
 function splitNoteAnnotations(token: string): { base: string; above?: string; below?: string; circled: boolean } | null {
   const m = token.match(/^(.+?)\{([^{}]*)\}$/);
   if (!m) return { base: token, circled: false };
+  // Tab bend braces (`7/3{b1/2}`) belong to the tab token, not to a note annotation.
+  if (/^\d+\/\d+$/.test(m[1]) && /^[br]/i.test(m[2])) return { base: token, circled: false };
   const body = m[2].trim();
   const result: { base: string; above?: string; below?: string; circled: boolean } = { base: m[1], circled: false };
   // Items are `above:text`, `below:text`, or `circle`. Text may be quoted to include spaces.
@@ -879,6 +882,30 @@ function pitchFromTab(fret: number, str: number, tuning: string[]): NotePitch | 
   const [, step, accidental, octave] = midiToNote(midi).toLowerCase().match(/^([a-g])(#?)(-?\d+)$/) ?? [];
   if (!step) return undefined;
   return { step: step as NotePitch["step"], accidental: accidental ? "#" : undefined, octave: parseInt(octave, 10) };
+}
+
+/**
+ * Parses bend modifiers such as `b1/2`, `bfull`, `b1/4`, `rfull`, or `b1/2,rfull` into quarter-tone
+ * steps. Returns null if any part is malformed.
+ */
+function parseBendActions(spec: string): BendAction[] | null {
+  const actions: BendAction[] = [];
+  for (const raw of spec.split(",")) {
+    const part = raw.trim().toLowerCase();
+    const m = part.match(/^([br])(full|\d+\/\d+|\d+(?:\s+\d+\/\d+)?)$/);
+    if (!m) return null;
+    let quarterTones: number;
+    const amount = m[2];
+    if (amount === "full") quarterTones = 4;
+    else if (amount.includes("/")) {
+      const [num, den] = amount.split("/").map((n) => parseInt(n, 10));
+      if (den !== 4 && den !== 2) return null;
+      quarterTones = (num * 4) / den;
+    } else quarterTones = parseInt(amount, 10) * 4;
+    if (!Number.isFinite(quarterTones) || quarterTones <= 0) return null;
+    actions.push({ kind: m[1] === "b" ? "bend" : "release", quarterTones });
+  }
+  return actions.length ? actions : null;
 }
 
 function parseNoteToken(
@@ -923,12 +950,15 @@ function parseNoteToken(
   }
 
   // Tab note: fret/string, e.g. 5/3 or 0/1h. Duration comes from the sticky `:dur` directive.
-  const tabMatch = token.match(/^(\d+)\/(\d+)(~?)([hpsv]?)$/i);
+  // Bends attach as a `{...}` modifier after the string, e.g. 7/3{b1/2} or 7/3{b1/2,rfull}.
+  const tabMatch = token.match(/^(\d+)\/(\d+)(?:\{([^{}]*)\})?(~?)([hpsv]?)$/i);
   if (tabMatch) {
     const fret = parseInt(tabMatch[1], 10);
     const str = parseInt(tabMatch[2], 10);
-    const tied = tabMatch[3] === "~";
-    const technique = (tabMatch[4]?.toLowerCase() as any) || undefined;
+    const bends = tabMatch[3] !== undefined ? parseBendActions(tabMatch[3]) : undefined;
+    if (tabMatch[3] !== undefined && !bends) return null;
+    const tied = tabMatch[4] === "~";
+    const technique = (tabMatch[5]?.toLowerCase() as any) || undefined;
 
     // In coupled blocks a bare fret/string also sets the staff pitch, from the block's tuning.
     const tabPitch = mode === "coupled" ? pitchFromTab(fret, str, tuning) : undefined;
@@ -940,7 +970,7 @@ function parseNoteToken(
       isRest: false,
       dots: defaultDots,
       tied,
-      tabPositions: [{ str, fret, technique }],
+      tabPositions: [{ str, fret, technique, ...(bends ? { bends } : {}) }],
       ...(pitches ? { pitches } : {}),
     };
   }

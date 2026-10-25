@@ -4,7 +4,7 @@
  * `glyphs: vexflow`. Coupled blocks get a tab row under each staff. Tab-only blocks
  * still use VexFlow.
  */
-import { NotationScore, ScoreMeasure, ScoreNote, NotePitch } from "../types";
+import { BendAction, NotationScore, ScoreMeasure, ScoreNote, NotePitch } from "../types";
 import { applyChordTextStyle } from "./chordGridRenderer";
 import { GUITAR_WRITTEN_OCTAVE, midiToStringFret, noteToMidi } from "../parser/scales";
 
@@ -321,6 +321,72 @@ export function renderGlyphScore(
   if (isCoupled || isTabOnly) drawCrossMeasureHammers(svg, score, tabSpots, tabSpacing, HAMMER_LABEL_SIZE, tabSize * 0.3, true);
 
   return wrapper;
+}
+
+
+/** Label for a bend of `quarterTones` quarter tones: "1/4", "1/2", "full", "1 1/2", "2", ... */
+function bendLabel(quarterTones: number): string {
+  const whole = Math.floor(quarterTones / 4);
+  const rest = quarterTones % 4;
+  const frac = rest === 1 ? "1/4" : rest === 2 ? "1/2" : rest === 3 ? "3/4" : "";
+  if (whole === 0) return frac;
+  if (!frac) return whole === 1 ? "full" : String(whole);
+  return `${whole} ${frac}`;
+}
+
+/**
+ * An open, stroked chevron arrowhead with its tip at (x, y). `dir` is -1 when the curve arrives going
+ * up and 1 when it arrives going down.
+ */
+function bendArrowhead(svg: SVGElement, x: number, y: number, dir: number, size: number): void {
+  const len = size * 0.3;
+  const half = size * 0.22;
+  const by = y - dir * len;
+  svg.appendChild(el("path", {
+    d: `M ${x - half} ${by} L ${x} ${y} L ${x + half} ${by}`,
+    fill: "none",
+    "stroke-width": STEM_W,
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    class: "br-bend",
+    style: "fill: none; stroke: var(--text-normal, #000)",
+  }));
+}
+
+/**
+ * Draws bend and release curves beside a tab fret number. Each bend rises from the fret level and
+ * ends in a stroked chevron just beneath its label, which sits on a row above the top string. A
+ * release curves back down to the fret level with the arrow pointing down.
+ */
+function drawBends(svg: SVGElement, x: number, startY: number, labelY: number, bends: BendAction[], size: number): void {
+  const stroke = { fill: "none", "stroke-width": STEM_W, "stroke-linecap": "round", style: "fill: none; stroke: var(--text-normal, #000)" };
+  // The arrow tip stops just beneath the label's baseline.
+  const topY = labelY + size * 0.2;
+  const w = size * 0.9;
+  let cursorX = x + size * 0.3;
+  let bent = false;
+  for (const action of bends) {
+    const from = cursorX;
+    const fromY = bent ? topY : startY;
+    // Any bend keeps the arrow up at the label row; a release brings it back down to the fret.
+    bent = action.kind === "bend" ? true : false;
+    const toY = bent ? topY : startY;
+    const x1 = from + w;
+    // The curve leaves the fret level horizontally and finishes vertically into the arrowhead.
+    const c1x = from + w * 0.55;
+    const c2y = fromY + (toY - fromY) * 0.45;
+    svg.appendChild(el("path", {
+      ...stroke,
+      class: "br-bend",
+      d: `M ${from} ${fromY} C ${c1x} ${fromY} ${x1} ${c2y} ${x1} ${toY}`,
+    }));
+    bendArrowhead(svg, x1, toY, action.kind === "bend" ? -1 : 1, size);
+    if (action.kind === "bend") {
+      const label = bendLabel(action.quarterTones);
+      if (label) svg.appendChild(noteText(x1, labelY, label, size * 0.75));
+    }
+    cursorX = x1 + size * 0.15;
+  }
 }
 
 /**
@@ -1097,6 +1163,16 @@ function drawTabMeasure(
     if (prev.isRest || (prev.voice ?? 1) !== (note.voice ?? 1)) return;
     const top = (n: ScoreNote) => tabY0 + (Math.min(...tabPositionsFor(n, tuning).map((p) => p.str)) - 1) * tabSpacing;
     hammerArc(svg, centres[i - 1] + size * 0.3, centres[i] - size * 0.3, top(prev) - size * 0.4, top(note) - size * 0.4, size * 1.2, note.hammerPull === "h" ? "H" : "P", HAMMER_LABEL_SIZE);
+  });
+
+  // Tab bends: curves above the fret number, e.g. 7/3{b1/2,rfull}.
+  measure.notes.forEach((note, i) => {
+    if (note.isRest) return;
+    for (const tp of note.tabPositions ?? []) {
+      if (!tp.bends?.length) continue;
+      const y = tabY0 + (tp.str - 1) * tabSpacing;
+      drawBends(svg, centres[i], y - size * 0.35, tabY0 - size * 0.9, tp.bends, size);
+    }
   });
 
   // Tab ties join the same string and fret across notes that share a position.

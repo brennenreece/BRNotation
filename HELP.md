@@ -301,6 +301,7 @@ Duration values: `:w` whole, `:h` half, `:q` quarter, `:8` eighth, `:16` sixteen
 - **Strings are numbered 1 to 6.** String 1 is the highest string (high E, E4 in standard tuning) and string 6 is the lowest (low E, E2). The order from string 6 to string 1 is low E, A, D, G, B, high E. A 4-string bass uses strings 1 to 4.
 - A rest is `r`. It uses the current duration, like a note.
 - A hammer-on or pull-off is a bare `h` or `p` between two notes, such as `| :q 5/3 h 7/3 p 5/3 |`. The `h` or `p` applies to the note after it. The tab draws an arc with an H or P label from the note before to the note after. In coupled mode the same arc is drawn above the staff notes, without a label, so the H or P appears only on the tab. The note before must be a sounding note, not a rest. The arc can cross a barline, so `| :q 5/3 | h 7/3 |` works too.
+- A bend goes in braces after the fret: `7/3{b1/2}` bends a half step, `7/3{bfull}` a full step, `7/3{b1/4}` a quarter step, and `7/3{b1/2,bfull}` bends a half step and then another full step. A release returns the string toward the fret line: `7/3{rfull}` releases a full step, and `7/3{b1/2,rfull}` bends a half step and releases it. Values are `1/4`, `1/2`, `3/4`, `1`/`full`, and `1 1/2`. The tab draws a curved arrow with the amount above it. Bends and releases are drawn on the tab only; they do not change the pitch shown in coupled staff notation.
 
 ```brnotation
 mode: tab
