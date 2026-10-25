@@ -89,6 +89,13 @@
   stroke: var(--text-normal) !important;
 }
 
+/* Bend arrowheads are small solid triangles. */
+.br-notation-svg path.br-bend-head {
+  fill: var(--text-normal) !important;
+  stroke: var(--text-normal) !important;
+  stroke-width: 1 !important;
+}
+
 /* Background cutout behind tab fret numbers: match note body background */
 .br-notation-svg .vf-tabnote rect {
   fill: var(--background-primary) !important;

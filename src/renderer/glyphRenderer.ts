@@ -335,21 +335,24 @@ function bendLabel(quarterTones: number): string {
 }
 
 /**
- * An open, stroked chevron arrowhead with its tip at (x, y). `dir` is -1 when the curve arrives going
- * up and 1 when it arrives going down.
+ * A small filled triangular arrowhead with its tip at (x, y), pointing along the direction
+ * (dx, dy) of the curve's arrival so it sits on the same axis as the line.
  */
-function bendArrowhead(svg: SVGElement, x: number, y: number, dir: number, size: number): void {
-  const len = size * 0.3;
-  const half = size * 0.22;
-  const by = y - dir * len;
+function bendArrowhead(svg: SVGElement, x: number, y: number, dx: number, dy: number, size: number): void {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const headLen = size * 0.32;
+  const halfW = size * 0.14;
+  // Base centre sits back along the axis from the tip; the two corners flank it perpendicular to the axis.
+  const bx = x - ux * headLen;
+  const by = y - uy * headLen;
+  const px = -uy * halfW;
+  const py = ux * halfW;
   svg.appendChild(el("path", {
-    d: `M ${x - half} ${by} L ${x} ${y} L ${x + half} ${by}`,
-    fill: "none",
-    "stroke-width": STEM_W,
-    "stroke-linecap": "round",
-    "stroke-linejoin": "round",
-    class: "br-bend",
-    style: "fill: none; stroke: var(--text-normal, #000)",
+    d: `M ${x} ${y} L ${bx + px} ${by + py} L ${bx - px} ${by - py} Z`,
+    class: "br-bend-head",
+    style: "fill: var(--text-normal, #000); stroke: var(--text-normal, #000)",
   }));
 }
 
@@ -363,7 +366,7 @@ function drawBends(svg: SVGElement, x: number, startY: number, labelY: number, b
   // The arrow tip stops just beneath the label's baseline.
   const topY = labelY + size * 0.2;
   const w = size * 0.9;
-  let cursorX = x + size * 0.3;
+  let cursorX = x + size * 0.55;
   let bent = false;
   for (const action of bends) {
     const from = cursorX;
@@ -371,21 +374,31 @@ function drawBends(svg: SVGElement, x: number, startY: number, labelY: number, b
     // Any bend keeps the arrow up at the label row; a release brings it back down to the fret.
     bent = action.kind === "bend" ? true : false;
     const toY = bent ? topY : startY;
-    const x1 = from + w;
-    // The curve leaves the fret level horizontally and finishes vertically into the arrowhead.
-    const c1x = from + w * 0.55;
-    const c2y = fromY + (toY - fromY) * 0.45;
-    svg.appendChild(el("path", {
-      ...stroke,
-      class: "br-bend",
-      d: `M ${from} ${fromY} C ${c1x} ${fromY} ${x1} ${c2y} ${x1} ${toY}`,
-    }));
-    bendArrowhead(svg, x1, toY, action.kind === "bend" ? -1 : 1, size);
+    // Each curve is a quarter circle whose radius equals the rise, so it meets the top row (and the
+    // fret row for a release) at 90 degrees. A release starts a little further out for clear space.
+    const gap = action.kind === "release" ? size * 0.3 : 0;
+    const sx = from + gap;
+    const r = Math.abs(fromY - toY);
+    const x1 = sx + r;
+    const K = 0.5523; // cubic approximation of a quarter circle
+    let d: string;
+    if (action.kind === "bend") {
+      // Starts horizontal at the fret, centre directly above it, ends vertical at the top.
+      d = `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY + K * r} ${x1} ${toY}`;
+    } else {
+      // Starts horizontal at the top, centre directly below it, ends vertical at the fret.
+      d = `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY - K * r} ${x1} ${toY}`;
+    }
+    svg.appendChild(el("path", { ...stroke, class: "br-bend", d }));
+    const c2x = x1;
+    const c2y = action.kind === "bend" ? toY + K * r : toY - K * r;
+    // The curve arrives vertically, so its tangent there is (x1 - c2x, toY - c2y); the head follows it.
+    bendArrowhead(svg, x1, toY, x1 - c2x, toY - c2y, size);
     if (action.kind === "bend") {
       const label = bendLabel(action.quarterTones);
       if (label) svg.appendChild(noteText(x1, labelY, label, size * 0.75));
     }
-    cursorX = x1 + size * 0.15;
+    cursorX = x1 + size * 0.2;
   }
 }
 
