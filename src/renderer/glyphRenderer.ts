@@ -163,7 +163,11 @@ export function renderGlyphScore(
   const tabSize = options.tabFontSize ?? 13;
   const tabSpacing = Math.max(lineSpacing, tabSize * 0.72 + 2);
   const tabHeight = (numStrings - 1) * tabSpacing;
-  const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP;
+  // Bends rise above the top tab string to hold the amount label, the approximate fret, and the arrow.
+  const hasBends = score.measures.some((m) => m.notes.some((n) => n.tabPositions?.some((p) => p.bends?.length)));
+  // Covers the label row (2.1 sizes above the top string) plus its text height.
+  const bendRoom = hasBends ? tabSize * 2.2 : 0;
+  const tabOffset = 4 * lineSpacing + COUPLED_STAFF_TAB_GAP + (isCoupled ? bendRoom : 0);
   // Chord symbols sit above the staff and lyrics below it. Room is only reserved when the score uses them.
   const hasChords = score.measures.some((m) => m.notes.some((n) => n.chordSymbol));
   const hasLyrics = score.measures.some((m) => m.notes.some((n) => n.lyric || n.lyricHold));
@@ -174,7 +178,7 @@ export function renderGlyphScore(
   const maxLift = hasChords && !isTabOnly ? maxChordLift(score, clef, lineSpacing) : 0;
   // The room is at least the original chord room, so default layouts keep their height.
   const aboveRoom = hasTextAbove && !isTabOnly ? NOTE_TEXT_ROOM * scale : 0;
-  const chordRoom = (hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0;
+  const chordRoom = ((hasChords || hasTextAbove) && !isTabOnly ? Math.max(CHORD_ROOM * scale, chordDistance + CHORD_TEXT_HEIGHT * scale + maxLift + aboveRoom) : 0) + (isTabOnly ? bendRoom : 0);
   // Below-staff room is reserved for lyrics and for {below:} note text.
   const lyricRoom = (hasLyrics || hasTextBelow) && !isTabOnly ? LYRIC_ROOM * scale : 0;
   const blockHeight = (isTabOnly ? tabHeight + 20 : isCoupled ? tabOffset + tabHeight + 2 : staffHeight) + chordRoom + lyricRoom;
@@ -232,7 +236,7 @@ export function renderGlyphScore(
           el("line", { x1: xPos, x2: xPos, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 })
         );
       }
-      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, tabOnlyMinGaps(measure, score.tuning, tabSize), tabSpots);
+      drawTabMeasure(svg, measure, tabNoteStart, xPos + thisMeasureWidth - noteEndInset - tabNoteStart, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, tabOnlyMinGaps(measure, score.tuning, tabSize), tabSpots, family);
       if (!isLastOnLine) {
         // Measure boundary: a single barline between measures, drawn at the right edge.
         svg.appendChild(el("line", { x1: xPos + thisMeasureWidth, x2: xPos + thisMeasureWidth, y1: tabY0, y2: tabY0 + tabHeight, style: "stroke: var(--text-normal, #000)", "stroke-width": 1 }));
@@ -308,7 +312,7 @@ export function renderGlyphScore(
           })
         );
       }
-      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, measureMinGaps(measure, score.tuning, tabSize, true, headScale, glyphSize), tabSpots);
+      drawTabMeasure(svg, measure, noteStartX, xPos + thisMeasureWidth - noteEndInset - noteStartX, tabY0, tabSpacing, numStrings, score.tuning, tabFont, tabSize, xPos, thisMeasureWidth, tabNumberOffset, measureMinGaps(measure, score.tuning, tabSize, true, headScale, glyphSize), tabSpots, family);
       const tabHeightPx = (numStrings - 1) * tabSpacing;
       drawBarlineRight(svg, xPos + thisMeasureWidth, tabY0, tabHeightPx, measure.barline, isLastOnLine, family, glyphSize);
       if (repeatStart && (measureInLine > 0 || !isCoupled)) {
@@ -361,42 +365,113 @@ function bendArrowhead(svg: SVGElement, x: number, y: number, dx: number, dy: nu
  * ends in a stroked chevron just beneath its label, which sits on a row above the top string. A
  * release curves back down to the fret level with the arrow pointing down.
  */
-function drawBends(svg: SVGElement, x: number, startY: number, labelY: number, bends: BendAction[], size: number): void {
+/** A label styled like a tab fret number, with a background-filled backing so tab lines don't cross it. */
+function fretLabel(svg: SVGElement, cx: number, y: number, text: string, size: number, family: string, musicFamily: string): void {
+  const parens = (text.match(/[()]/g) ?? []).length;
+  const flats = (text.match(/\u266D/g) ?? []).length;
+  const digits = text.length - parens - flats;
+  const flatW = size * 0.42;
+  const w = digits * size * 0.6 + parens * size * 0.3 + flats * flatW + 2;
+  const h = size * 0.72;
+  svg.appendChild(el("rect", { x: cx - w / 2, y: y - h / 2, width: w, height: h, style: "fill: var(--background-primary, #fff)" }));
+  // The flat is drawn in the music font (SMuFL U+E260) so it matches the staff's accidental, and the
+  // rest is the bold tab number. Each piece is placed by its estimated width so the flat hugs the digit.
+  const pieces = text.split(/(\u266D)/).filter((p) => p.length > 0);
+  let x = cx - w / 2 + 1;
+  for (const part of pieces) {
+    if (part === "\u266D") {
+      const flat = el("text", {
+        x,
+        y: y + size * 0.1,
+        "dominant-baseline": "central",
+        "font-family": musicFamily,
+        "font-size": size * 0.9,
+        "text-anchor": "start",
+        style: "fill: var(--text-normal, #000)",
+      }) as SVGTextElement;
+      flat.textContent = String.fromCodePoint(0xe260);
+      svg.appendChild(flat);
+      x += flatW;
+    } else {
+      const t = el("text", {
+        x,
+        y,
+        "dominant-baseline": "central",
+        "font-family": family,
+        "font-size": size,
+        "font-weight": "bold",
+        "text-anchor": "start",
+        style: "fill: var(--text-normal, #000)",
+      }) as SVGTextElement;
+      t.textContent = part;
+      svg.appendChild(t);
+      x += (part.length - (part.match(/[()]/g) ?? []).length) * size * 0.6 + (part.match(/[()]/g) ?? []).length * size * 0.3;
+    }
+  }
+}
+
+function drawBends(svg: SVGElement, x: number, startY: number, labelY: number, topY: number, bends: BendAction[], size: number, approxText: string, targetText: string, family: string, numberY: number, musicFamily: string): void {
   const stroke = { fill: "none", "stroke-width": STEM_W, "stroke-linecap": "round", style: "fill: none; stroke: var(--text-normal, #000)" };
-  // The arrow tip stops just beneath the label's baseline.
-  const topY = labelY + size * 0.2;
+  // The arrow row is fixed by the caller, independent of where the amount label sits.
+  // The parenthesised approximate fret sits on the bent note's own string row, beside the fret number.
+  // A prebend's straight line and release start a little above the fret so they clear the fret number.
+  const prebendLift = bends[0]?.kind === "release" ? size * 0.1 : 0;
+  const lowY = startY - prebendLift;
+  let approxDrawn = false;
+  const drawApprox = (ax: number) => {
+    if (approxDrawn) return;
+    approxDrawn = true;
+    fretLabel(svg, ax, numberY, `(${approxText})`, size, family, musicFamily);
+  };
   const w = size * 0.9;
   let cursorX = x + size * 0.55;
   let bent = false;
-  for (const action of bends) {
+  const prebend = bends[0]?.kind === "release";
+  // A release with no bend before it is a prebend: a straight line up from the fret, then the release
+  // curves back down from the top of that line, labelled with its amount.
+  if (prebend) {
+    const lineX = x + size * 0.15;
+    svg.appendChild(el("path", { ...stroke, class: "br-bend", d: `M ${lineX} ${lowY} L ${lineX} ${topY}` }));
+    // The amount sits above the line, which joins the release without an arrowhead.
+    const label = bendLabel(bends[0].quarterTones);
+    if (label) svg.appendChild(noteText(lineX, labelY, label, size * 0.75));
+    drawApprox(lineX);
+    cursorX = lineX;
+    bent = true;
+  }
+  for (let i = 0; i < bends.length; i++) {
+    const action = bends[i];
     const from = cursorX;
-    const fromY = bent ? topY : startY;
+    const fromY = bent ? topY : lowY;
     // Any bend keeps the arrow up at the label row; a release brings it back down to the fret.
-    bent = action.kind === "bend" ? true : false;
-    const toY = bent ? topY : startY;
-    // Each curve is a quarter circle whose radius equals the rise, so it meets the top row (and the
-    // fret row for a release) at 90 degrees. A release starts a little further out for clear space.
-    const gap = action.kind === "release" ? size * 0.3 : 0;
+    bent = action.kind === "bend";
+    const toY = bent ? topY : lowY;
+    // A release that follows a straight prebend joins that line directly. Otherwise it starts a
+    // little further out so it has clear space after the bend's label.
+    const joinsPrebend = prebend && i === 0;
+    const gap = action.kind === "release" && !joinsPrebend ? size * 0.3 : 0;
     const sx = from + gap;
+    // Each curve is a quarter circle whose radius equals the rise, so it meets the top row (and the
+    // fret row for a release) at 90 degrees.
     const r = Math.abs(fromY - toY);
     const x1 = sx + r;
     const K = 0.5523; // cubic approximation of a quarter circle
-    let d: string;
-    if (action.kind === "bend") {
+    const d = action.kind === "bend"
       // Starts horizontal at the fret, centre directly above it, ends vertical at the top.
-      d = `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY + K * r} ${x1} ${toY}`;
-    } else {
+      ? `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY + K * r} ${x1} ${toY}`
       // Starts horizontal at the top, centre directly below it, ends vertical at the fret.
-      d = `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY - K * r} ${x1} ${toY}`;
-    }
+      : `M ${sx} ${fromY} C ${sx + K * r} ${fromY} ${x1} ${toY - K * r} ${x1} ${toY}`;
     svg.appendChild(el("path", { ...stroke, class: "br-bend", d }));
-    const c2x = x1;
     const c2y = action.kind === "bend" ? toY + K * r : toY - K * r;
-    // The curve arrives vertically, so its tangent there is (x1 - c2x, toY - c2y); the head follows it.
-    bendArrowhead(svg, x1, toY, x1 - c2x, toY - c2y, size);
+    // The curve arrives vertically, so its tangent there is (0, toY - c2y); the head follows it.
+    bendArrowhead(svg, x1, toY, 0, toY - c2y, size);
     if (action.kind === "bend") {
       const label = bendLabel(action.quarterTones);
       if (label) svg.appendChild(noteText(x1, labelY, label, size * 0.75));
+      drawApprox(x1);
+    } else if (prebend && i === bends.length - 1) {
+      // A prebend's release lands on the fret it returns to, shown under the arrow.
+      fretLabel(svg, x1, numberY, targetText, size, family, musicFamily);
     }
     cursorX = x1 + size * 0.2;
   }
@@ -1104,7 +1179,8 @@ function drawTabMeasure(
   measureWidth: number,
   numberOffset = 0,
   minGaps?: number[],
-  spots?: Map<string, Spot>
+  spots?: Map<string, Spot>,
+  musicFamily?: string
 ): void {
   const stroke = "stroke: var(--text-normal, #000)";
   const tabBottom = tabY0 + (numStrings - 1) * tabSpacing;
@@ -1184,7 +1260,13 @@ function drawTabMeasure(
     for (const tp of note.tabPositions ?? []) {
       if (!tp.bends?.length) continue;
       const y = tabY0 + (tp.str - 1) * tabSpacing;
-      drawBends(svg, centres[i], y - size * 0.35, tabY0 - size * 0.9, tp.bends, size);
+      // Quarter tones: a half step is one fret and a full step is two. Whole frets come from the peak
+      // bend; an odd quarter-tone remainder (e.g. 1/4) shows the next fret with a "b", as in (♭8) for 7.
+      const peak = Math.max(...tp.bends.map((b) => b.quarterTones));
+      const odd = peak % 2 === 1;
+      const approx = tp.fret + Math.floor(peak / 2) + (odd ? 1 : 0);
+      const approxText = odd ? `\u266D${approx}` : String(approx);
+      drawBends(svg, centres[i], y - size * 0.35, tabY0 - size * 0.95, tabY0 - size * 0.65, tp.bends, size, approxText, String(tp.fret), family, y + numberOffset, musicFamily ?? family);
     }
   });
 
