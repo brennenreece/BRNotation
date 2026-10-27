@@ -25,6 +25,10 @@ const STAFF_SPACE = 10;
 const STAFF_BOTTOM_PAD = 24;
 /** Gap kept between the beat slashes and each barline */
 const BEAT_EDGE_INSET = 12;
+/** Gap between a beat's start and the left edge of a chord symbol placed on it */
+const CHORD_BEAT_INSET = 4;
+/** Letter-spacing (px) for chord symbols in chord charts. Tight, so complex chords fit on consecutive beats. */
+const CHART_CHORD_SPACING = -0.4;
 const TOP_PAD = 2;
 const BOTTOM_PAD = 2;
 const LEFT_PAD = 6;
@@ -187,19 +191,20 @@ function drawMeasureContent(
     drawBeatSlash(g, cx, midY, STAFF_SPACE);
   }
 
-  // Each chord is centered over the beat where it starts. Chords split the bar evenly.
+  // Each chord is left-aligned at the start of the beat where it begins, so it reads as belonging to that beat.
+  // Chords split the bar evenly.
   chords.forEach((label, idx) => {
     const startBeat = Math.min(beatCount - 1, Math.round((idx * beatCount) / chords.length));
-    const cx = innerStart + beatWidth * (startBeat + 0.5);
+    const cx = innerStart + beatWidth * startBeat + CHORD_BEAT_INSET;
     if (label === "%") {
-      drawSimile(g, cx, top - 12);
+      drawSimile(g, cx, top - 12, "start");
       return;
     }
     if (label === "/") return;
     if (isRomanNumeralToken(label)) {
-      drawRomanChord(g, label, cx, top - 12);
+      drawRomanChord(g, label, cx, top - 12, "start");
     } else {
-      drawChordSvg(g, label, cx, top - 12, "center");
+      drawChordSvg(g, label, cx, top - 12, "left");
     }
     if (score.showFunctions && score.key) {
       const numeral = romanNumeralFor(label, score.key);
@@ -207,7 +212,7 @@ function drawMeasureContent(
         const fText = document.createElementNS(svgNS, "text");
         fText.setAttribute("x", `${cx}`);
         fText.setAttribute("y", `${bottom + 18}`);
-        fText.setAttribute("text-anchor", "middle");
+        fText.setAttribute("text-anchor", "start");
         fText.classList.add("br-chordgrid-function-text");
         fText.textContent = numeral;
         g.appendChild(fText);
@@ -280,29 +285,31 @@ function drawRightEdgeBarline(stave: Stave, measure: ChordGridMeasure) {
 }
 
 /** Draws a "%" simile sign centered on the given point */
-function drawSimile(g: Element, cx: number, cy: number) {
+function drawSimile(g: Element, cx: number, cy: number, anchor: "start" | "middle" = "middle") {
   const svgNS = "http://www.w3.org/2000/svg";
   const t = document.createElementNS(svgNS, "text");
   t.setAttribute("x", `${cx}`);
   t.setAttribute("y", `${cy}`);
-  t.setAttribute("text-anchor", "middle");
+  t.setAttribute("text-anchor", anchor);
   t.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(t);
+  t.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
   t.textContent = "%";
   g.appendChild(t);
 }
 
 /** Draw chord name with typography */
 /** Draws a roman-numeral chord symbol with its quality as a superscript, matching note-name chords */
-function drawRomanChord(g: SVGElement, token: string, x: number, y: number) {
+function drawRomanChord(g: SVGElement, token: string, x: number, y: number, anchor: "start" | "middle" = "middle") {
   const { base, quality } = splitRomanNumeral(token);
   const svgNS = "http://www.w3.org/2000/svg";
   const el = document.createElementNS(svgNS, "text");
   el.setAttribute("x", `${x}`);
   el.setAttribute("y", `${y}`);
-  el.setAttribute("text-anchor", "middle");
+  el.setAttribute("text-anchor", anchor);
   el.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(el);
+  el.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
 
   const baseTspan = document.createElementNS(svgNS, "tspan");
   baseTspan.textContent = base;
@@ -334,6 +341,7 @@ function drawChordSvg(
   text.setAttribute("text-anchor", align === "center" ? "middle" : "start");
   text.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(text);
+  text.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
 
   // Root
   const rootTspan = document.createElementNS(svgNS, "tspan");
