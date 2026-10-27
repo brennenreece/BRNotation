@@ -217,6 +217,14 @@
   fill: var(--text-normal);
 }
 
+/* Chord chart symbols and chord box names are always regular weight, including their superscripts and bass notes. */
+.br-chordgrid-chord-text,
+.br-chordgrid-chord-text tspan,
+.br-chordbox-name,
+.br-chordbox-name tspan {
+  font-weight: 400 !important;
+}
+
 /* ==========================================================================
    Shared diagram styles: chord boxes and fretboard maps.
    Both renderers use the br-diagram-* classes, so one change here updates both.
