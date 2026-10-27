@@ -150,7 +150,7 @@ export function renderChordDiagram(
 
   // Chord name, drawn with the chord chart's rendering (accidentals, superscript quality, slash bass) and chord font.
   // 25px above the nut, so the name sits close to the box.
-  drawChordName(svg, data.name, width / 2, 31, "center", 2);
+  drawChordName(svg, data.name, width / 2, 31, "center");
 
   // Diagram boundaries
   const padLeft = 35;

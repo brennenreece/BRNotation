@@ -39,6 +39,12 @@ let chordFontSize = 16;
 let chordFontSpacing = 0;
 let chordFontWeight = 700;
 
+/** Style for chord box names, kept apart from the chord chart so each can be sized and spaced on its own. */
+let boxFontFamily = "sans-serif";
+let boxFontSize = 32;
+let boxFontSpacing = 0;
+let boxFontWeight = 700;
+
 /**
  * Sets the font used for chord names. The family must be a concrete font-family list,
  * not a CSS variable: SVG presentation attributes do not resolve var().
@@ -54,6 +60,29 @@ export function setChordFontStyle(family: string, size: number, spacing: number,
     applyChordTextStyle(el);
     setChartChordStyle(el);
   });
+}
+
+/**
+ * Sets the font used for chord box names. Size is the box name's font size in px; spacing is letter-spacing in px.
+ */
+export function setChordBoxFontStyle(family: string, size: number, spacing: number, weight: number): void {
+  boxFontFamily = family;
+  boxFontSize = size;
+  boxFontSpacing = spacing;
+  boxFontWeight = weight;
+  document.querySelectorAll<SVGElement>(".br-chordbox-name").forEach((el) => {
+    applyBoxNameStyle(el);
+    setChartChordStyle(el);
+  });
+}
+
+/** Applies the chord box font to a chord box name element. */
+function applyBoxNameStyle(el: Element) {
+  el.setAttribute("font-family", boxFontFamily);
+  el.setAttribute("font-size", `${boxFontSize}px`);
+  el.setAttribute("letter-spacing", `${boxFontSpacing}`);
+  el.setAttribute("font-weight", `${boxFontWeight}`);
+  (el as SVGElement).style.fontWeight = `${boxFontWeight}`;
 }
 
 /** Chord chart symbols use regular weight, whatever the chord font's default weight is. */
@@ -337,8 +366,8 @@ function drawRomanChord(g: SVGElement, token: string, x: number, y: number, anch
  * Draws a chord name with the chord chart's typography (root, accidental, superscript quality, slash bass)
  * into an SVG group. Used by chord boxes so their names match the chord chart.
  */
-export function drawChordName(g: SVGElement, chordStr: string, x: number, y: number, align: "center" | "left" = "center", sizeScale = 1) {
-  drawChordSvg(g, chordStr, x, y, align, sizeScale);
+export function drawChordName(g: SVGElement, chordStr: string, x: number, y: number, align: "center" | "left" = "center") {
+  drawChordSvg(g, chordStr, x, y, align, applyBoxNameStyle, "br-chordbox-name");
 }
 
 function drawChordSvg(
@@ -347,7 +376,8 @@ function drawChordSvg(
   x: number,
   y: number,
   align: "center" | "left" = "center",
-  sizeScale = 1
+  styleFn: (el: Element) => void = applyChordTextStyle,
+  extraClass = "br-chordgrid-chord-text"
 ) {
   const parsed = parseChord(chordStr);
   const svgNS = "http://www.w3.org/2000/svg";
@@ -355,9 +385,8 @@ function drawChordSvg(
   text.setAttribute("x", `${x}`);
   text.setAttribute("y", `${y}`);
   text.setAttribute("text-anchor", align === "center" ? "middle" : "start");
-  text.classList.add("br-chordgrid-chord-text");
-  applyChordTextStyle(text);
-  if (sizeScale !== 1) text.setAttribute("font-size", `${chordFontSize * sizeScale}px`);
+  text.classList.add(extraClass);
+  styleFn(text);
   setChartChordStyle(text);
 
   // Root

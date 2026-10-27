@@ -832,6 +832,9 @@ Open **Settings → BRNotation** to change these options.
 | Chord symbol font | System default | Font for chord names. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). |
 | Chord box font | System default | Font for chord names above chord boxes. Options: System default, JulesJazz (jazz), or MuseJazz (jazz). A block's `chord-font:` overrides it. |
 | Chord symbol font size | 16 | Base size in pixels for chord names. Jazz fonts are scaled up from this value automatically. |
+| Chord symbol letter spacing | 0 | Space between characters in chord charts, in pixels. Range -2 to 4. |
+| Chord box font size | 32 | Size in pixels for chord names above chord boxes. Jazz fonts are scaled up from this value automatically. |
+| Chord box letter spacing | 0 | Space between characters in chord box names, in pixels. Range -2 to 4. |
 | Diagram dot style | Inverted | Default dot style for chord boxes and fretboard maps. A block's `style:` overrides it. |
 | Staff notation font | Bravura | Music font for staff and tab notation. Options: Bravura, Petaluma (handwritten), Leland, JulesJazz (jazz), Gootville (engraved), MuseJazz (jazz). |
 | Tab number font | System default | Font for fret numbers on tablature. Options: System default, Monospace, Serif, JulesJazz (jazz), MuseJazz (jazz). |

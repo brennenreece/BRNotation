@@ -1,5 +1,5 @@
 import { MUSIC_FONT_DATA } from "./fontData";
-import { setChordFontStyle } from "../renderer/chordGridRenderer";
+import { setChordBoxFontStyle, setChordFontStyle } from "../renderer/chordGridRenderer";
 
 /**
  * Chord symbol fonts. Each text face covers letters, digits, and the common chord
@@ -75,11 +75,17 @@ export function loadBundledFonts(): Promise<void> {
   return fontsLoaded;
 }
 
+/** Applies the chord box font, size, and letter spacing to chord box names. */
+export function applyChordBoxFont(choice: string, baseSize: number, spacing: number): void {
+  const option = CHORD_FONT_OPTIONS[choice] ?? CHORD_FONT_OPTIONS.system;
+  setChordBoxFontStyle(resolveFontFamily(option.family), baseSize * option.scale, spacing, option.weight);
+}
+
 /** Applies the chosen chord font by setting a CSS variable used by chord text. */
-export function applyChordFont(choice: string, baseSize: number): void {
+export function applyChordFont(choice: string, baseSize: number, spacing: number): void {
   const option = CHORD_FONT_OPTIONS[choice] ?? CHORD_FONT_OPTIONS.system;
   document.body.style.setProperty("--br-chord-font", option.family);
-  setChordFontStyle(resolveFontFamily(option.family), baseSize * option.scale, option.spacing, option.weight);
+  setChordFontStyle(resolveFontFamily(option.family), baseSize * option.scale, spacing, option.weight);
 }
 
 /**

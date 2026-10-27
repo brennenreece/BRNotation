@@ -20,7 +20,7 @@ import { renderChordDiagram,
 import { renderVexflowScore } from "./renderer/vexflowRenderer";
 import { renderGlyphScore } from "./renderer/glyphRenderer";
 import { VexFlow } from "vexflow";
-import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordFont, loadBundledFonts, resolveFontFamily } from "./fonts/musicFonts";
+import { CHORD_FONT_OPTIONS, STAFF_FONT_OPTIONS, TAB_FONT_OPTIONS, applyChordBoxFont, applyChordFont, loadBundledFonts, resolveFontFamily } from "./fonts/musicFonts";
 import { MetricsDefaults } from "vexflow";
 
 interface BRNotationPluginSettings {
@@ -31,7 +31,10 @@ interface BRNotationPluginSettings {
   maxMeasuresPerLine: number;
   chordFont: string;
   chordFontSize: number;
+  chordFontSpacing: number;
   chordBoxFont: string;
+  chordBoxFontSize: number;
+  chordBoxFontSpacing: number;
   staffFont: string;
   tabFont: string;
   tabFontSize: number;
@@ -50,7 +53,10 @@ const DEFAULT_SETTINGS: BRNotationPluginSettings = {
   maxMeasuresPerLine: 4,
   chordFont: "system",
   chordFontSize: 16,
+  chordFontSpacing: 0,
   chordBoxFont: "system",
+  chordBoxFontSize: 32,
+  chordBoxFontSpacing: 0,
   staffFont: "bravura",
   tabFont: "system",
   tabFontSize: 13,
@@ -164,7 +170,8 @@ export default class BRNotationPlugin extends Plugin {
 
   /** Applies the chord and staff font choices to the document and VexFlow. */
   applyFontSettings() {
-    applyChordFont(this.settings.chordFont, this.settings.chordFontSize);
+    applyChordFont(this.settings.chordFont, this.settings.chordFontSize, this.settings.chordFontSpacing);
+    applyChordBoxFont(this.settings.chordBoxFont, this.settings.chordBoxFontSize, this.settings.chordBoxFontSpacing);
     const staff = STAFF_FONT_OPTIONS[this.settings.staffFont] ?? STAFF_FONT_OPTIONS.bravura;
     VexFlow.setFonts(staff.vexflow);
     MetricsDefaults.NoteHead.fontScale = staff.noteheadScale;
@@ -218,6 +225,8 @@ export default class BRNotationPlugin extends Plugin {
           ...box,
           dotStyle: box.dotStyle ?? this.settings.diagramStyle,
         }));
+        // A block's chord-font: overrides the chord box font setting for this block's names.
+        applyChordBoxFont(parsed.chordFont ?? this.settings.chordBoxFont, this.settings.chordBoxFontSize, this.settings.chordBoxFontSpacing);
         renderChordBoxes(body, boxes, parsed.chordColumns, parsed.chordSize, parsed.chordAlign);
         const fontKey = parsed.chordFont ?? this.settings.chordBoxFont;
         const fontFamily = CHORD_FONT_OPTIONS[fontKey]?.family ?? CHORD_FONT_OPTIONS.system.family;
@@ -378,6 +387,48 @@ class BRNotationSettingTab extends PluginSettingTab {
           .setDynamicTooltip()
           .onChange(async (val) => {
             this.plugin.settings.chordFontSize = val;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Chord symbol letter spacing")
+      .setDesc("Space between characters in chord charts, in pixels. 0 is the default.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(-2, 4, 0.1)
+          .setValue(this.plugin.settings.chordFontSpacing)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.chordFontSpacing = val;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Chord box font size")
+      .setDesc("Size in pixels for chord names above chord boxes. Jazz fonts are scaled up from this value automatically.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(10, 48, 1)
+          .setValue(this.plugin.settings.chordBoxFontSize)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.chordBoxFontSize = val;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Chord box letter spacing")
+      .setDesc("Space between characters in chord box names, in pixels. 0 is the default.")
+      .addSlider((slider) => {
+        slider
+          .setLimits(-2, 4, 0.1)
+          .setValue(this.plugin.settings.chordBoxFontSpacing)
+          .setDynamicTooltip()
+          .onChange(async (val) => {
+            this.plugin.settings.chordBoxFontSpacing = val;
             await this.plugin.saveSettings();
           });
       });
