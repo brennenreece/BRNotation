@@ -27,8 +27,6 @@ const STAFF_BOTTOM_PAD = 24;
 const BEAT_EDGE_INSET = 12;
 /** Gap between a beat's start and the left edge of a chord symbol placed on it */
 const CHORD_BEAT_INSET = 4;
-/** Letter-spacing (px) for chord symbols in chord charts. Tight, so complex chords fit on consecutive beats. */
-const CHART_CHORD_SPACING = -0.4;
 const TOP_PAD = 2;
 const BOTTOM_PAD = 2;
 const LEFT_PAD = 6;
@@ -58,9 +56,8 @@ export function setChordFontStyle(family: string, size: number, spacing: number,
   });
 }
 
-/** Chord chart symbols use regular weight and tight spacing, whatever the chord font's default weight is. */
+/** Chord chart symbols use regular weight, whatever the chord font's default weight is. */
 function setChartChordStyle(el: Element) {
-  el.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
   el.setAttribute("font-weight", "400");
   (el as SVGElement).style.fontWeight = "400";
 }
@@ -340,8 +337,8 @@ function drawRomanChord(g: SVGElement, token: string, x: number, y: number, anch
  * Draws a chord name with the chord chart's typography (root, accidental, superscript quality, slash bass)
  * into an SVG group. Used by chord boxes so their names match the chord chart.
  */
-export function drawChordName(g: SVGElement, chordStr: string, x: number, y: number, align: "center" | "left" = "center") {
-  drawChordSvg(g, chordStr, x, y, align);
+export function drawChordName(g: SVGElement, chordStr: string, x: number, y: number, align: "center" | "left" = "center", sizeScale = 1) {
+  drawChordSvg(g, chordStr, x, y, align, sizeScale);
 }
 
 function drawChordSvg(
@@ -349,7 +346,8 @@ function drawChordSvg(
   chordStr: string,
   x: number,
   y: number,
-  align: "center" | "left" = "center"
+  align: "center" | "left" = "center",
+  sizeScale = 1
 ) {
   const parsed = parseChord(chordStr);
   const svgNS = "http://www.w3.org/2000/svg";
@@ -359,6 +357,7 @@ function drawChordSvg(
   text.setAttribute("text-anchor", align === "center" ? "middle" : "start");
   text.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(text);
+  if (sizeScale !== 1) text.setAttribute("font-size", `${chordFontSize * sizeScale}px`);
   setChartChordStyle(text);
 
   // Root

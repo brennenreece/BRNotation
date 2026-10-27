@@ -10,10 +10,10 @@ export const CHORD_FONT_OPTIONS: Record<
   { label: string; family: string; scale: number; spacing: number; weight: number }
 > = {
   system: { label: "System default", family: "var(--font-sans)", scale: 1, spacing: 0, weight: 700 },
-  // Jazz faces are condensed and only ship Regular, so they are set larger and spaced out. Bold is
+  // Jazz faces are condensed and only ship Regular, so they are set larger. Bold is
   // not applied because the browser would synthesize it and thicken the accidentals.
-  julesjazz: { label: "JulesJazz (jazz chord charts)", family: "\"JulesJazzText\", var(--font-sans)", scale: 1.4, spacing: 1.5, weight: 400 },
-  musejazz: { label: "MuseJazz (jazz chord charts)", family: "\"MuseJazzText\", var(--font-sans)", scale: 1.4, spacing: 1.5, weight: 400 },
+  julesjazz: { label: "JulesJazz (jazz chord charts)", family: "\"JulesJazzText\", var(--font-sans)", scale: 1.4, spacing: 0, weight: 400 },
+  musejazz: { label: "MuseJazz (jazz chord charts)", family: "\"MuseJazzText\", var(--font-sans)", scale: 1.4, spacing: 0, weight: 400 },
 };
 
 /**
