@@ -66,6 +66,8 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 |---|---|---|
 | `mode:` or `type:` | all | One of `notation`, `tab`, `coupled`, `chordchart`, `chord`, `fretboard`. `chordgrid` is accepted as an alias for `chordchart`. |
 | `title:` | notation, tab, coupled, chordchart, fretboard | Title shown above the output. |
+| `space-above:` | all | Empty space above the whole block, such as `space-above: 12 px`. Units: `px`, `em`, `rem`, `pt`. A bare number means px. |
+| `space-below:` | all | Empty space below the whole block, such as `space-below: 1 em`. Same units as `space-above:`. |
 | `time:` | notation, tab, coupled, chordchart | Time signature, such as `4/4`, `3/4`, `6/8`. In chordchart blocks, add `visible = false` after it (`time: 4/4 visible = false`) to hide the signature. |
 | `key:` | notation, coupled | Key signature, such as `C`, `G`, `Bb`, `F#m`. |
 | `clef:` | notation, coupled | `treble`, `bass`, or `alto`. Defaults to the setting in Settings. |

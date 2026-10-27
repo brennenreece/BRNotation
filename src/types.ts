@@ -198,4 +198,8 @@ export interface ParsedBlock {
   chordFont?: string;
   fretboardScale?: FretboardScaleData;
   errors?: string[];
+  /** Space above the whole block (`space-above:`), as a CSS length such as "12px" or "1em". */
+  spaceAbove?: string;
+  /** Space below the whole block (`space-below:`), as a CSS length. */
+  spaceBelow?: string;
 }

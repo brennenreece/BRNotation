@@ -178,10 +178,12 @@ export default class BRNotationPlugin extends Plugin {
   ) {
     el.empty();
     const container = el.createDiv({ cls: "br-notation-container" });
+    const parsed = parseBRNotationBlock(source, this.settings.defaultTuning);
+    if (parsed.spaceAbove) container.style.paddingTop = parsed.spaceAbove;
+    if (parsed.spaceBelow) container.style.paddingBottom = parsed.spaceBelow;
 
     // Header bar
     const header = container.createDiv({ cls: "br-notation-header" });
-    const parsed = parseBRNotationBlock(source, this.settings.defaultTuning);
 
     const titleText =
       parsed.notationScore?.title ||

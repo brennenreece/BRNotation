@@ -80,7 +80,32 @@ function notesToFrets(notes: DiagramNote[]): {
 }
 
 /** `defaultTuning` is the global setting; a `tuning:` line in the block overrides it. */
+/** Padding unit for `space-above:` and `space-below:`: a number with px, em, rem, or pt. A bare number means px. */
+const SPACE_PATTERN = /^(\d+(?:\.\d+)?)\s*(px|em|rem|pt)?$/i;
+
+/** Reads `space-above:` and `space-below:` lines into CSS lengths. Invalid values are reported as errors. */
+function readBlockSpacing(lines: string[], errors: string[]): { spaceAbove?: string; spaceBelow?: string } {
+  const result: { spaceAbove?: string; spaceBelow?: string } = {};
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const lower = trimmed.toLowerCase();
+    const key = lower.startsWith("space-above:") ? "spaceAbove" : lower.startsWith("space-below:") ? "spaceBelow" : null;
+    if (!key) continue;
+    const raw = trimmed.slice(trimmed.indexOf(":") + 1).trim();
+    const m = raw.match(SPACE_PATTERN);
+    if (m) result[key] = `${m[1]}${(m[2] ?? "px").toLowerCase()}`;
+    else errors.push(`Invalid ${key === "spaceAbove" ? "space-above" : "space-below"} "${raw}". Use a number with a unit, e.g. space-above: 12 px or space-below: 1 em.`);
+  }
+  return result;
+}
+
 export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"): ParsedBlock {
+  const parsed = parseBlockBody(rawText, defaultTuning);
+  const spacing = readBlockSpacing(rawText.split(/\r?\n/), parsed.errors ?? []);
+  return { ...parsed, ...spacing };
+}
+
+function parseBlockBody(rawText: string, defaultTuning: string): ParsedBlock {
   const lines = rawText.split(/\r?\n/);
   const errors: string[] = [];
 
@@ -220,6 +245,8 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
       }
       continue;
     }
+    // Block padding is read separately by readBlockSpacing.
+    if (lower.startsWith("space-above:") || lower.startsWith("space-below:")) continue;
     if (lower.startsWith("title:")) {
       title = trimmed.slice(6).trim();
       continue;
