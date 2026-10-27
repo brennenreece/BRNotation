@@ -440,6 +440,14 @@
   margin: 0 0 8px;
 }
 
+/* Chord box text uses the regular weight, so the chord name and labels are not bolded. */
+.br-chord-box-container .br-diagram-title,
+.br-chord-box-container .br-diagram-label,
+.br-chord-box-container .br-diagram-aux,
+.br-chord-box-container text {
+  font-weight: 400;
+}
+
 /* Several chord boxes in one block, laid out in rows of `columns:` boxes */
 .br-chord-box-stack {
   display: flex;
