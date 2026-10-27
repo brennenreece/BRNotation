@@ -10,6 +10,7 @@ import {
   TUNING_PRESETS,
 } from "../parser/scales";
 import { formatChordHtml } from "../parser/chordParser";
+import { drawChordName } from "./chordGridRenderer";
 
 /** Shared sizing so chord boxes and fretboard maps draw dots and strings the same way. */
 function dotRadiusFor(stringSpacing: number, fretSpacing: number): number {
@@ -147,15 +148,9 @@ export function renderChordDiagram(
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.classList.add("br-diagram-svg", "br-chord-box-svg");
 
-  // Title / Chord Name
-  const title = document.createElementNS(svgNS, "text");
-  title.setAttribute("x", `${width / 2}`);
+  // Chord name, drawn with the chord chart's rendering (accidentals, superscript quality, slash bass) and chord font.
   // 25px above the nut, so the name sits close to the box.
-  title.setAttribute("y", "31");
-  title.setAttribute("text-anchor", "middle");
-  title.classList.add("br-diagram-title");
-  title.textContent = data.name;
-  svg.appendChild(title);
+  drawChordName(svg, data.name, width / 2, 31, "center");
 
   // Diagram boundaries
   const padLeft = 35;

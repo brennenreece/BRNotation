@@ -336,6 +336,14 @@ function drawRomanChord(g: SVGElement, token: string, x: number, y: number, anch
   g.appendChild(el);
 }
 
+/**
+ * Draws a chord name with the chord chart's typography (root, accidental, superscript quality, slash bass)
+ * into an SVG group. Used by chord boxes so their names match the chord chart.
+ */
+export function drawChordName(g: SVGElement, chordStr: string, x: number, y: number, align: "center" | "left" = "center") {
+  drawChordSvg(g, chordStr, x, y, align);
+}
+
 function drawChordSvg(
   g: SVGElement,
   chordStr: string,
