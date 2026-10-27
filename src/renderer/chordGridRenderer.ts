@@ -52,7 +52,17 @@ export function setChordFontStyle(family: string, size: number, spacing: number,
   chordFontSpacing = spacing;
   chordFontWeight = weight;
   // Update chord text already drawn, so open notes change without a re-render.
-  document.querySelectorAll<SVGElement>(".br-chordgrid-chord-text").forEach((el) => applyChordTextStyle(el));
+  document.querySelectorAll<SVGElement>(".br-chordgrid-chord-text").forEach((el) => {
+    applyChordTextStyle(el);
+    setChartChordStyle(el);
+  });
+}
+
+/** Chord chart symbols use regular weight and tight spacing, whatever the chord font's default weight is. */
+function setChartChordStyle(el: Element) {
+  el.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
+  el.setAttribute("font-weight", "400");
+  (el as SVGElement).style.fontWeight = "400";
 }
 
 /** Applies the configured chord font to an SVG text element. */
@@ -293,7 +303,7 @@ function drawSimile(g: Element, cx: number, cy: number, anchor: "start" | "middl
   t.setAttribute("text-anchor", anchor);
   t.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(t);
-  t.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
+  setChartChordStyle(t);
   t.textContent = "%";
   g.appendChild(t);
 }
@@ -309,7 +319,7 @@ function drawRomanChord(g: SVGElement, token: string, x: number, y: number, anch
   el.setAttribute("text-anchor", anchor);
   el.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(el);
-  el.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
+  setChartChordStyle(el);
 
   const baseTspan = document.createElementNS(svgNS, "tspan");
   baseTspan.textContent = base;
@@ -341,7 +351,7 @@ function drawChordSvg(
   text.setAttribute("text-anchor", align === "center" ? "middle" : "start");
   text.classList.add("br-chordgrid-chord-text");
   applyChordTextStyle(text);
-  text.setAttribute("letter-spacing", `${CHART_CHORD_SPACING}`);
+  setChartChordStyle(text);
 
   // Root
   const rootTspan = document.createElementNS(svgNS, "tspan");
