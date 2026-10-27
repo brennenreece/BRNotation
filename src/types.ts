@@ -172,7 +172,7 @@ export interface FretboardScaleData {
   scale: string; // e.g. "major", "minor", "minor-pentatonic", "blues", "dorian"
   tuning?: string[]; // default standard guitar
   minFret: number; // default 0
-  maxFret: number; // default 12, 15, or 24
+  maxFret: number; // default 12; set with `frets: a-b`
   displayMode: "degrees" | "notes";
   dotStyle?: DiagramDotStyle;
   dotColor?: DiagramColor;

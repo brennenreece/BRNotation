@@ -78,7 +78,8 @@ Header lines go at the top of the block. Each has the form `key: value`. Keys ar
 | `base-fret:` or `basefret:` | chord | Fret number of the top of the diagram. Defaults to one fret below the lowest fretted note, or 1 if the box uses an open string or fret 1. |
 | `root:` | fretboard | Root note of the scale, such as `A` or `F#`. |
 | `scale:` | fretboard | Scale name from [Tunings and scales](#tunings-and-scales). |
-| `base-fret:` | fretboard | First fret shown. The map keeps a 12-fret span from there. Default starts at fret 0. |
+| `frets:` | fretboard | Range of frets to show, as `a-b`, such as `frets: 0-17`. The diagram scales to fit its container. Default `0-12`. |
+| `base-fret:` | fretboard | First fret shown. The map keeps a 12-fret span from there. Default starts at fret 0. Ignored when `frets:` is set. |
 | `show:` | fretboard | `degrees` (default) or `notes`. |
 | `style:` | chord, fretboard | Dot style for the whole diagram. See [Diagram styles](#diagram-styles). |
 | `color:` | chord, fretboard | Named colour for all dots: `accent`, `red`, `green`, `blue`, `orange`, `purple`, or `muted`. |

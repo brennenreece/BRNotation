@@ -123,6 +123,7 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
   let minFret = 0;
   let maxFret = 12;
   let fretboardBaseFret: number | undefined = undefined;
+  let fretboardRange: { min: number; max: number } | undefined = undefined;
   let displayMode: "degrees" | "notes" = "degrees";
   let dotStyle: DiagramDotStyle | undefined = undefined;
   let dotColor: DiagramColor | undefined = undefined;
@@ -304,6 +305,13 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
     }
     if (lower.startsWith("frets:")) {
       const fStr = trimmed.slice(6).trim();
+      // A fretboard map takes a fret range such as `frets: 0-17`. A chord takes a list of six strings.
+      const rangeMatch = fStr.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (rangeMatch) {
+        fretboardRange = { min: parseInt(rangeMatch[1], 10), max: parseInt(rangeMatch[2], 10) };
+        if (!lines.some((l) => l.toLowerCase().startsWith("type:"))) mode = "fretboard";
+        continue;
+      }
       chordDotOverrides = [];
       chordFrets = fStr.split(/\s+/).map((f) => {
         // `3{square,red}` styles one dot. Plain numbers and x behave as before.
@@ -431,14 +439,17 @@ export function parseBRNotationBlock(rawText: string, defaultTuning = "standard"
     return { mode, rawText, chordDiagram: chordBoxes[0], chordDiagrams: chordBoxes, chordColumns, chordSize, chordAlign, chordFont, errors };
   } else if (mode === "fretboard") {
     // base-fret: is the first fret shown; the map keeps a 12-fret span from there.
-    const fbMin = fretboardBaseFret ?? minFret;
+    // `frets: a-b` sets the shown range directly. Otherwise a 12-fret span starts at base-fret.
+    const fbMin = fretboardRange ? fretboardRange.min : fretboardBaseFret ?? minFret;
+    const fbMax = fretboardRange ? fretboardRange.max : fbMin + (maxFret - minFret);
+    if (fretboardRange && fbMax < fbMin) errors.push(`Invalid frets range "${fbMin}-${fbMax}". The last fret must not be below the first.`);
     const fretboardScale: FretboardScaleData = {
       title,
       root: scaleRoot,
       scale: scaleName,
       tuning,
       minFret: fbMin,
-      maxFret: fbMin + (maxFret - minFret),
+      maxFret: Math.max(fbMin, fbMax),
       displayMode,
       dotStyle,
       dotColor,
